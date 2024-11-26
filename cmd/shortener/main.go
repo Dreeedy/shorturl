@@ -21,7 +21,7 @@ var (
 // @Param url body string true "URL to be shortened"
 // @Success 201 {string} string "Shortened URL"
 // @Router / [post]
-func shortenedUrl(res http.ResponseWriter, req *http.Request) {
+func shortenedURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -72,7 +72,7 @@ func hash(s string) uint32 {
 // @Accept text/plain
 // @Produce text/plain
 // @Router / [get]
-func originaUrl(res http.ResponseWriter, req *http.Request) {
+func originaURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -81,10 +81,15 @@ func originaUrl(res http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 	parts := strings.Split(path, "/")
 
+	fmt.Println("path =>", path)
+	fmt.Println("parts =>", parts)
+	fmt.Println("parts 0 =>", parts[0])
+	fmt.Println("parts 1 =>", parts[1])
+
 	var id string
 
-	if len(parts) > 2 {
-		id = parts[2]
+	if len(parts) >= 1 {
+		id = parts[1]
 	} else {
 		http.Error(res, "ID not provided", http.StatusBadRequest)
 		return
@@ -111,8 +116,8 @@ func main() {
 	log.Println("Server started at :8080")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/url", shortenedUrl)
-	mux.HandleFunc("/url/{id}", originaUrl)
+	mux.HandleFunc("/", shortenedURL)
+	mux.HandleFunc("/{id}", originaURL)
 
 	err := http.ListenAndServe(`:8080`, mux)
 	if err != nil {
