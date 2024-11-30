@@ -83,6 +83,10 @@ func shortenedURL(res http.ResponseWriter, req *http.Request) {
 	}
 
 	shortenedURL := generateShortenedURL(originalURL)
+
+	log.Printf("shortenedURL.originalURL: %s", originalURL)
+	log.Printf("shortenedURL.shortenedURL: %s", shortenedURL)
+
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
 	res.Write([]byte(shortenedURL)) // http://localhost:8080/3152b10a
@@ -123,10 +127,10 @@ func originaURL(res http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 	parts := strings.Split(path, "/")
 
-	fmt.Println("path =>", path)
-	fmt.Println("parts =>", parts)
-	fmt.Println("parts 0 =>", parts[0])
-	fmt.Println("parts 1 =>", parts[1])
+	log.Println("path =>", path)
+	log.Println("parts =>", parts)
+	log.Println("parts 0 =>", parts[0])
+	log.Println("parts 1 =>", parts[1])
 
 	var id string
 
@@ -137,21 +141,31 @@ func originaURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fmt.Println("id =>", id)
+	log.Println("id =>", id)
 
 	// Locking for concurrent access to urlMap
 	urlMapLock.Lock()
 	originalURL, found := urlMap[id]
 	urlMapLock.Unlock() // Unlock after reading
 
+	log.Printf("urlMap: %s", urlMap)
+	log.Printf("urlMap[id]: %s, %s", id, urlMap[id])
+
 	if !found {
 		http.Error(res, "URL not found", http.StatusBadRequest)
 		return // Exit after handling this error
 	}
 
+	log.Println("URL found")
+
 	// Set the Location header and send a redirect response
 	res.Header().Set("Location", originalURL)
+
+	log.Println("Header Set Location")
+
 	res.WriteHeader(http.StatusTemporaryRedirect)
+
+	log.Println("WriteHeader")
 }
 
 func main() {
@@ -166,7 +180,7 @@ func main() {
 
 	err := http.ListenAndServe(`:8080`, loggedMux)
 	if err != nil {
-		fmt.Println("Server failed:", err)
+		log.Println("Server failed:", err)
 		panic(err)
 	}
 }
