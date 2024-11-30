@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,11 +54,17 @@ func TestShortenedURL(t *testing.T) {
 		},
 	}
 
+	// Initialize the router
+	r := chi.NewRouter()
+	r.Post("/", shortenedURL)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
-			shortenedURL(w, request)
+
+			// Use the router to serve the request
+			r.ServeHTTP(w, request)
 
 			res := w.Result()
 			defer res.Body.Close()
@@ -75,7 +82,7 @@ func TestShortenedURL(t *testing.T) {
 	}
 }
 
-func TestOriginaURL(t *testing.T) {
+func TestOriginalURL(t *testing.T) {
 	type want struct {
 		code        int
 		location    string
@@ -88,7 +95,7 @@ func TestOriginaURL(t *testing.T) {
 	}{
 		{
 			name: "valid ID",
-			path: "http://localhost:8080/7d7647c5",
+			path: "/7d7647c5",
 			want: want{
 				code:        307,
 				location:    "https://practicum.yandex.ru",
@@ -97,7 +104,7 @@ func TestOriginaURL(t *testing.T) {
 		},
 		{
 			name: "valid ID 2",
-			path: "http://localhost:8080/37a7dcdd",
+			path: "/37a7dcdd",
 			want: want{
 				code:        307,
 				location:    "https://www.google.com/",
@@ -106,7 +113,7 @@ func TestOriginaURL(t *testing.T) {
 		},
 		{
 			name: "Invalid ID",
-			path: "http://localhost:8080/1234567890",
+			path: "/1234567890",
 			want: want{
 				code:        400,
 				location:    "",
@@ -115,11 +122,17 @@ func TestOriginaURL(t *testing.T) {
 		},
 	}
 
+	// Initialize the router
+	r := chi.NewRouter()
+	r.Get("/{id}", originalURL)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
 			w := httptest.NewRecorder()
-			originaURL(w, request)
+
+			// Use the router to serve the request
+			r.ServeHTTP(w, request)
 
 			res := w.Result()
 

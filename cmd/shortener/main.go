@@ -1,6 +1,3 @@
-// Code increment #1 DONE
-// Code increment #2 DONE
-
 package main
 
 import (
@@ -12,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Middleware логгирует все запросы к серверу.
@@ -119,28 +119,13 @@ func hash(s string) uint32 {
 // @Accept text/plain
 // @Produce text/plain
 // @Router / [get]
-func originaURL(res http.ResponseWriter, req *http.Request) {
+func originalURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
 	}
 
-	path := req.URL.Path
-	parts := strings.Split(path, "/")
-
-	log.Println("path =>", path)
-	log.Println("parts =>", parts)
-	log.Println("parts 0 =>", parts[0])
-	log.Println("parts 1 =>", parts[1])
-
-	var id string
-
-	if len(parts) >= 1 {
-		id = parts[1]
-	} else {
-		http.Error(res, "ID not provided", http.StatusBadRequest)
-		return
-	}
+	id := chi.URLParam(req, "id")
 
 	log.Println("id =>", id)
 
@@ -172,14 +157,14 @@ func originaURL(res http.ResponseWriter, req *http.Request) {
 func main() {
 	log.Println("Server started at :8080")
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", shortenedURL)
-	mux.HandleFunc("/{id}", originaURL)
+	r := chi.NewRouter()
+	r.Use(middleware.Logger) // Use the built-in logger middleware from chi
+	r.Use(LoggingRQMiddleware)
 
-	// Wrap the mux with the logging middleware
-	loggedMux := LoggingRQMiddleware(mux)
+	r.Post("/", shortenedURL)
+	r.Get("/{id}", originalURL)
 
-	err := http.ListenAndServe(`:8080`, loggedMux)
+	err := http.ListenAndServe(":8080", r)
 	if err != nil {
 		log.Println("Server failed:", err)
 		panic(err)
