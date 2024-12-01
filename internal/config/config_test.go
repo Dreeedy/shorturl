@@ -1,3 +1,6 @@
+// Выполнить все тесты в проекте:
+// F:\shorturl> go test ./... -v
+
 package config
 
 import (

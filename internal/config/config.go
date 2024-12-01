@@ -1,4 +1,6 @@
-// internal/config/config.go
+// Использование флаго конфигурации:
+// go buid
+// F:\shorturl> .\shortener -a :8888 -b http://localhost:8888
 package config
 
 import (
