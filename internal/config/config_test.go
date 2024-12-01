@@ -20,6 +20,7 @@ func TestGetConfig(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
+		envVars  map[string]string
 		expected Config
 	}{
 		{
@@ -31,11 +32,46 @@ func TestGetConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "custom values",
+			name: "flag custom values",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
 			expected: Config{
 				RunAddr: ":8888",
 				BaseURL: "http://127.0.0.1:8888",
+			},
+		},
+		{ // Проверяет, что конфигурация загружается из переменных окружения, если они установлены.
+			name: "environment variables",
+			args: []string{"cmd"},
+			envVars: map[string]string{
+				"SERVER_ADDRESS": ":8081",
+				"BASE_URL":       "http://example.com:8081",
+			},
+			expected: Config{
+				RunAddr: ":8081",
+				BaseURL: "http://example.com:8081",
+			},
+		},
+		{ // Проверяет, что переменные окружения имеют приоритет над флагами командной строки
+			name: "environment variables override flags",
+			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
+			envVars: map[string]string{
+				"SERVER_ADDRESS": ":8081",
+				"BASE_URL":       "http://example.com:8081",
+			},
+			expected: Config{
+				RunAddr: ":8081",
+				BaseURL: "http://example.com:8081",
+			},
+		},
+		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения, так и флагов командной строки
+			name: "mixed environment variables and flags",
+			args: []string{"cmd", "-a", ":8888"},
+			envVars: map[string]string{
+				"BASE_URL": "http://example.com:8081",
+			},
+			expected: Config{
+				RunAddr: ":8888",
+				BaseURL: "http://example.com:8081",
 			},
 		},
 	}
@@ -45,6 +81,11 @@ func TestGetConfig(t *testing.T) {
 			// Set the command-line arguments for the test
 			os.Args = tt.args
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+
+			// Set the environment variables for the test
+			for key, value := range tt.envVars {
+				t.Setenv(key, value)
+			}
 
 			// Reset the config singleton
 			cfgOnce = sync.Once{}
