@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -94,17 +95,20 @@ func shortenedURL(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(shortenedURL)) // http://localhost:8080/3152b10a
+	res.Write([]byte(shortenedURL))
 }
 
 // Функция для генерации сокращённого URL
 func generateShortenedURL(originalURL string) string {
 	hash := fmt.Sprintf("%x", hash(originalURL))
-	shortenedURL := "http://localhost:8080/" + hash
 
 	urlMapLock.Lock()
 	defer urlMapLock.Unlock()
 	urlMap[hash] = originalURL
+
+	cfg := config.GetConfig()
+	parts := []string{cfg.BaseURL, "/", hash}
+	shortenedURL := strings.Join(parts, "")
 
 	return shortenedURL
 }
@@ -159,7 +163,11 @@ func originalURL(res http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	log.Println("Server started at :8080")
+	cfg := config.GetConfig()
+
+	// Выводим конфигурацию
+	log.Printf("Running server on %s\n", cfg.RunAddr)
+	log.Printf("Base URL for shortened URLs: %s\n", cfg.BaseURL)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger) // Use the built-in logger middleware from chi
@@ -168,7 +176,7 @@ func main() {
 	r.Post("/", shortenedURL)
 	r.Get("/{id}", originalURL)
 
-	err := http.ListenAndServe(":8080", r)
+	err := http.ListenAndServe(cfg.RunAddr, r)
 	if err != nil {
 		log.Println("Server failed:", err)
 		panic(err)
