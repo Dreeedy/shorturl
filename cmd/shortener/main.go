@@ -24,14 +24,14 @@ func main() {
 	log.Printf("Running server on %s\n", cfg.RunAddr)
 	log.Printf("Base URL for shortened URLs: %s\n", cfg.BaseURL)
 
-	r := chi.NewRouter()
-	r.Use(middleware.Logger) // Use the built-in logger middleware from chi
-	r.Use(middlewares.LoggingRQMiddleware)
+	router := chi.NewRouter()
+	router.Use(middleware.Logger) // Use the built-in logger middleware from chi
+	router.Use(middlewares.LoggingRQMiddleware)
 
-	r.Post("/", handlers.ShortenedURL)
-	r.Get("/{id}", handlers.OriginalURL)
+	router.Post("/", handlers.ShortenedURL)
+	router.Get("/{id}", handlers.OriginalURL)
 
-	err := http.ListenAndServe(cfg.RunAddr, r)
+	err := http.ListenAndServe(cfg.RunAddr, router)
 	if err != nil {
 		log.Println("Server failed:", err)
 		panic(err)
