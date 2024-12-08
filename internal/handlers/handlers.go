@@ -1,21 +1,20 @@
 package handlers
 
 import (
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
-	"log"
 	"net/http"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storage"
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/exp/rand"
 )
 
-var (
-	urlMap     = make(map[string]string)
-	urlMapLock sync.Mutex
-)
+var storageInstance = storage.NewStorage()
 
 // @Description Endpoint to shorten a given URL
 // @ID /url
@@ -45,9 +44,6 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 
 	shortenedURL := generateShortenedURL(originalURL)
 
-	log.Printf("shortenedURL.originalURL: %s", originalURL)
-	log.Printf("shortenedURL.shortenedURL: %s", shortenedURL)
-
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
 	res.Write([]byte(shortenedURL))
@@ -55,11 +51,14 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 
 // Функция для генерации сокращённого URL
 func generateShortenedURL(originalURL string) string {
-	hash := fmt.Sprintf("%x", hash(originalURL))
+	hash := generateHash(originalURL)
 
-	urlMapLock.Lock()
-	defer urlMapLock.Unlock()
-	urlMap[hash] = originalURL
+	// Обработка коллизий
+	for storageInstance.Exists(hash) {
+		hash = generateRandomHash()
+	}
+
+	storageInstance.SetURL(hash, originalURL)
 
 	cfg := config.GetConfig()
 	parts := []string{cfg.BaseURL, "/", hash}
@@ -68,13 +67,21 @@ func generateShortenedURL(originalURL string) string {
 	return shortenedURL
 }
 
-// Пример хеш-функции
-func hash(s string) uint32 {
-	var hash uint32
-	for _, c := range s {
-		hash = hash*31 + uint32(c)
-	}
-	return hash
+// Функция для генерации хеша с использованием SHA-256
+func generateHash(s string) string {
+	hash := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(hash[:])
+}
+
+// Функция для генерации случайного хеша в случае нахождения коллизии
+func generateRandomHash() string {
+	tUnixNano := time.Now().UnixNano()
+	var tUnixUint64 uint64 = uint64(tUnixNano)
+
+	rand.Seed(tUnixUint64)
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // @Description xxx
@@ -90,29 +97,14 @@ func OriginalURL(res http.ResponseWriter, req *http.Request) {
 
 	id := chi.URLParam(req, "id")
 
-	log.Println("id =>", id)
-
-	// Locking for concurrent access to urlMap
-	urlMapLock.Lock()
-	originalURL, found := urlMap[id]
-	urlMapLock.Unlock() // Unlock after reading
-
-	log.Printf("urlMap: %s", urlMap)
-	log.Printf("urlMap[id]: %s, %s", id, urlMap[id])
+	originalURL, found := storageInstance.GetURL(id)
 
 	if !found {
 		http.Error(res, "URL not found", http.StatusBadRequest)
 		return // Exit after handling this error
 	}
 
-	log.Println("URL found")
-
 	// Set the Location header and send a redirect response
 	res.Header().Set("Location", originalURL)
-
-	log.Println("Header Set Location")
-
 	res.WriteHeader(http.StatusTemporaryRedirect)
-
-	log.Println("WriteHeader")
 }
