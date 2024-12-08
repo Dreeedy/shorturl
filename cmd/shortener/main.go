@@ -14,12 +14,12 @@ import (
 func main() {
 	cfg := config.GetConfig()
 
-	// Выводим конфигурацию
+	// Выводим конфигурацию.
 	log.Printf("Running server on %s\n", cfg.RunAddr)
 	log.Printf("Base URL for shortened URLs: %s\n", cfg.BaseURL)
 
 	router := chi.NewRouter()
-	router.Use(middleware.Logger) // Use the built-in logger middleware from chi
+	router.Use(middleware.Logger) // Use the built-in logger middleware from chi.
 	router.Use(middlewares.LoggingRQMiddleware)
 
 	router.Post("/", handlers.ShortenedURL)

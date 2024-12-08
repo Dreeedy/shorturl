@@ -16,13 +16,6 @@ import (
 
 var storageInstance = storage.NewStorage()
 
-// @Description Endpoint to shorten a given URL
-// @ID /url
-// @Accept text/plain
-// @Produce text/plain
-// @Param url body string true "URL to be shortened"
-// @Success 201 {string} string "Shortened URL"
-// @Router / [post]
 func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
@@ -49,11 +42,11 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 	res.Write([]byte(shortenedURL))
 }
 
-// Функция для генерации сокращённого URL
+// Функция для генерации сокращённого URL.
 func generateShortenedURL(originalURL string) string {
 	hash := generateHash(originalURL)
 
-	// Обработка коллизий
+	// Обработка коллизий.
 	for storageInstance.Exists(hash) {
 		hash = generateRandomHash()
 	}
@@ -67,13 +60,13 @@ func generateShortenedURL(originalURL string) string {
 	return shortenedURL
 }
 
-// Функция для генерации хеша с использованием SHA-256
+// Функция для генерации хеша с использованием SHA-256.
 func generateHash(s string) string {
 	hash := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(hash[:])
 }
 
-// Функция для генерации случайного хеша в случае нахождения коллизии
+// Функция для генерации случайного хеша в случае нахождения коллизии.
 func generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
 	tUnixUint64 := uint64(tUnixNano)
@@ -84,11 +77,6 @@ func generateRandomHash() string {
 	return hex.EncodeToString(b)
 }
 
-// @Description xxx
-// @ID /url/{id}
-// @Accept text/plain
-// @Produce text/plain
-// @Router / [get]
 func OriginalURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
@@ -101,10 +89,10 @@ func OriginalURL(res http.ResponseWriter, req *http.Request) {
 
 	if !found {
 		http.Error(res, "URL not found", http.StatusBadRequest)
-		return // Exit after handling this error
+		return // Exit after handling this error.
 	}
 
-	// Set the Location header and send a redirect response
+	// Set the Location header and send a redirect response.
 	res.Header().Set("Location", originalURL)
 	res.WriteHeader(http.StatusTemporaryRedirect)
 }
