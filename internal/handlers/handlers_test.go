@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func TestShortenedURL(t *testing.T) {
 		},
 	}
 
-	// Initialize the router
+	// Initialize the router.
 	r := chi.NewRouter()
 	r.Post("/", ShortenedURL)
 
@@ -62,7 +62,7 @@ func TestShortenedURL(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
 
-			// Use the router to serve the request
+			// Use the router to serve the request.
 			r.ServeHTTP(w, request)
 
 			res := w.Result()
@@ -121,7 +121,7 @@ func TestOriginalURL(t *testing.T) {
 		},
 	}
 
-	// Initialize the router
+	// Initialize the router.
 	r := chi.NewRouter()
 	r.Get("/{id}", OriginalURL)
 
@@ -130,7 +130,7 @@ func TestOriginalURL(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
 			w := httptest.NewRecorder()
 
-			// Use the router to serve the request
+			// Use the router to serve the request.
 			r.ServeHTTP(w, request)
 
 			res := w.Result()

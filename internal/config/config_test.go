@@ -10,7 +10,7 @@ import (
 )
 
 func TestGetConfig(t *testing.T) {
-	// Save the original command-line arguments
+	// Save the original command-line arguments.
 	originalArgs := os.Args
 	defer func() { os.Args = originalArgs }()
 
@@ -48,7 +48,7 @@ func TestGetConfig(t *testing.T) {
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что переменные окружения имеют приоритет над флагами командной строки
+		{ // Проверяет, что переменные окружения имеют приоритет над флагами командной строки.
 			name: "environment variables override flags",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
 			envVars: map[string]string{
@@ -60,7 +60,7 @@ func TestGetConfig(t *testing.T) {
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения, так и флагов командной строки
+		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения, так и флагов командной строки.
 			name: "mixed environment variables and flags",
 			args: []string{"cmd", "-a", ":8888"},
 			envVars: map[string]string{
@@ -75,22 +75,22 @@ func TestGetConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set the command-line arguments for the test
+			// Set the command-line arguments for the test.
 			os.Args = tt.args
 			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-			// Set the environment variables for the test
+			// Set the environment variables for the test.
 			for key, value := range tt.envVars {
 				t.Setenv(key, value)
 			}
 
-			// Reset the config singleton
+			// Reset the config singleton.
 			cfgOnce = sync.Once{}
 
-			// Get the config
+			// Get the config.
 			cfg := GetConfig()
 
-			// Assert the expected values
+			// Assert the expected values.
 			assert.Equal(t, tt.expected, cfg)
 		})
 	}

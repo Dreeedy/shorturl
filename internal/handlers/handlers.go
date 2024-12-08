@@ -10,7 +10,7 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storage"
-	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi"
 	"golang.org/x/exp/rand"
 )
 
