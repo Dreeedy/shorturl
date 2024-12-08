@@ -29,3 +29,6 @@ _golangci-lint-rm-unformatted-report: _golangci-lint-format-report
 .PHONY: golangci-lint-clean
 golangci-lint-clean:
 	sudo rm -rf ./golangci-lint
+
+fmt:
+	find . -name '*.go' -print0 | xargs -0 gofmt -w
