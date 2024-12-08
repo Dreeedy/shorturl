@@ -4,13 +4,13 @@ import (
 	"sync"
 )
 
-// структура для хранения URL и мьютекса.
+// Storage is a structure for storing URLs and a mutex.
 type Storage struct {
 	urlMap     map[string]string
 	urlMapLock *sync.Mutex
 }
 
-// создает новый экземпляр Storage.
+// NewStorage creates a new instance of Storage.
 func NewStorage() *Storage {
 	return &Storage{
 		urlMap:     make(map[string]string),
@@ -18,14 +18,14 @@ func NewStorage() *Storage {
 	}
 }
 
-// сохраняет URL в хранилище.
+// SetURL saves a URL in the storage.
 func (s *Storage) SetURL(hash, originalURL string) {
 	s.urlMapLock.Lock()
 	defer s.urlMapLock.Unlock()
 	s.urlMap[hash] = originalURL
 }
 
-// извлекает URL из хранилища.
+// GetURL retrieves a URL from the storage.
 func (s *Storage) GetURL(hash string) (string, bool) {
 	s.urlMapLock.Lock()
 	defer s.urlMapLock.Unlock()
@@ -33,7 +33,7 @@ func (s *Storage) GetURL(hash string) (string, bool) {
 	return originalURL, ok
 }
 
-// проверяет есть ли URL в хранилище.
+// Exists checks if a URL exists in the storage.
 func (s *Storage) Exists(hash string) bool {
 	_, found := s.GetURL(hash)
 	return found
