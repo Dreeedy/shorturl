@@ -3,7 +3,6 @@ package handlers
 import (
 	"bytes"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,7 +29,7 @@ func TestShortenedURL(t *testing.T) {
 			body: "https://practicum.yandex.ru",
 			want: want{
 				code:        201,
-				response:    "http://localhost:8080/7d7647c5",
+				response:    "http://localhost:8080/8a9923515b446c11cef0fb86da0b29e3206fa3674412ae2de61299b820859aa2",
 				contentType: "text/plain",
 			},
 		},
@@ -39,7 +38,7 @@ func TestShortenedURL(t *testing.T) {
 			body: "https://www.google.com/",
 			want: want{
 				code:        201,
-				response:    "http://localhost:8080/37a7dcdd",
+				response:    "http://localhost:8080/d0e196a0c25d35dd0a84593cbae0f38333aa58529936444ea26453eab28dfc86",
 				contentType: "text/plain",
 			},
 		},
@@ -95,7 +94,7 @@ func TestOriginalURL(t *testing.T) {
 	}{
 		{
 			name: "valid ID",
-			path: "/7d7647c5",
+			path: "/8a9923515b446c11cef0fb86da0b29e3206fa3674412ae2de61299b820859aa2",
 			want: want{
 				code:        307,
 				location:    "https://practicum.yandex.ru",
@@ -104,7 +103,7 @@ func TestOriginalURL(t *testing.T) {
 		},
 		{
 			name: "valid ID 2",
-			path: "/37a7dcdd",
+			path: "/d0e196a0c25d35dd0a84593cbae0f38333aa58529936444ea26453eab28dfc86",
 			want: want{
 				code:        307,
 				location:    "https://www.google.com/",
@@ -136,7 +135,6 @@ func TestOriginalURL(t *testing.T) {
 
 			res := w.Result()
 
-			log.Printf("Test.urlMap: %s", urlMap)
 			defer res.Body.Close()
 
 			assert.Equal(t, test.want.code, res.StatusCode)

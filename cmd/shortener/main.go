@@ -1,9 +1,3 @@
-// Code increment #1 DONE
-// Code increment #2 DONE
-// Code increment #3 DONE
-// Code increment #4 DONE
-// Code increment #5 DONE
-
 package main
 
 import (
@@ -33,7 +27,6 @@ func main() {
 
 	err := http.ListenAndServe(cfg.RunAddr, router)
 	if err != nil {
-		log.Println("Server failed:", err)
-		panic(err)
+		log.Fatal("Server failed:", err)
 	}
 }
