@@ -76,7 +76,7 @@ func generateHash(s string) string {
 // Функция для генерации случайного хеша в случае нахождения коллизии
 func generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
-	var tUnixUint64 uint64 = uint64(tUnixNano)
+	tUnixUint64 := uint64(tUnixNano)
 
 	rand.Seed(tUnixUint64)
 	b := make([]byte, 16)
