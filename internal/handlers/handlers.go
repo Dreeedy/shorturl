@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -35,7 +35,11 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortenedURL := generateShortenedURL(originalURL)
+	shortenedURL, err := generateShortenedURL(originalURL)
+	if err != nil {
+		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
@@ -43,12 +47,19 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 }
 
 // Функция для генерации сокращённого URL.
-func generateShortenedURL(originalURL string) string {
-	hash := generateHash(originalURL)
+func generateShortenedURL(originalURL string) (string, error) {
+	const maxAttempts = 10
+	var hash string
 
-	// Обработка коллизий.
-	for storageInstance.Exists(hash) {
+	for attempts := 0; attempts < maxAttempts; attempts++ {
 		hash = generateRandomHash()
+		if !storageInstance.Exists(hash) {
+			break
+		}
+	}
+
+	if storageInstance.Exists(hash) {
+		return "", fmt.Errorf("failed to generate unique hash after %d attempts", maxAttempts)
 	}
 
 	storageInstance.SetURL(hash, originalURL)
@@ -57,22 +68,16 @@ func generateShortenedURL(originalURL string) string {
 	parts := []string{cfg.BaseURL, "/", hash}
 	shortenedURL := strings.Join(parts, "")
 
-	return shortenedURL
+	return shortenedURL, nil
 }
 
-// Функция для генерации хеша с использованием SHA-256.
-func generateHash(s string) string {
-	hash := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(hash[:])
-}
-
-// Функция для генерации случайного хеша в случае нахождения коллизии.
+// Функция для генерации случайного хеша фиксированной длины.
 func generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
 	tUnixUint64 := uint64(tUnixNano)
 
 	rand.Seed(tUnixUint64)
-	b := make([]byte, 16)
+	b := make([]byte, 4) // 8 hex characters.
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
