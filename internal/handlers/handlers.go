@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storage"
@@ -21,8 +22,9 @@ type Handler interface {
 }
 
 type HTTPHandler struct {
-	Config  config.Config
-	Storage storage.Storage
+	Config     config.Config
+	Storage    storage.Storage
+	StorageMux sync.Mutex
 }
 
 func NewHandler(cfg config.Config, stg storage.Storage) Handler {
@@ -78,12 +80,17 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
+
+		// Lock the mutex to ensure atomic check and set operation
+		ref.StorageMux.Lock()
 		if !ref.Storage.Exists(hash) {
 			ref.Storage.SetURL(hash, originalURL)
+			ref.StorageMux.Unlock()
 			break
-		} else {
-			attempts++
 		}
+		ref.StorageMux.Unlock()
+
+		attempts++
 	}
 
 	if attempts >= maxAttempts {
