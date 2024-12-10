@@ -4,14 +4,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storage"
 	"github.com/go-chi/chi"
-	"golang.org/x/exp/rand"
 )
 
 type Handler interface {
@@ -24,6 +24,7 @@ type Handler interface {
 type HTTPHandler struct {
 	Config  config.Config
 	Storage storage.Storage
+	HashMux sync.Mutex
 }
 
 func NewHandler(cfg config.Config, stg storage.Storage) Handler {
@@ -78,16 +79,18 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
+		ref.HashMux.Lock()
 		if !ref.Storage.Exists(hash) {
+			ref.Storage.SetURL(hash, originalURL)
+			ref.HashMux.Unlock()
 			break
 		}
+		ref.HashMux.Unlock()
 	}
 
 	if ref.Storage.Exists(hash) {
 		return "", fmt.Errorf("failed to generate unique hash after %d attempts", maxAttempts)
 	}
-
-	ref.Storage.SetURL(hash, originalURL)
 
 	cfg := ref.Config.GetConfig()
 
@@ -99,12 +102,8 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 
 // Function for generating a random hash of fixed length.
 func (ref *HTTPHandler) generateRandomHash() string {
-	tUnixNano := time.Now().UnixNano()
-	tUnixUint64 := uint64(tUnixNano)
-
 	const size int = 4
 
-	rand.Seed(tUnixUint64)
 	b := make([]byte, size) // 8 hex characters.
 	if _, err := rand.Read(b); err != nil {
 		panic(err)
