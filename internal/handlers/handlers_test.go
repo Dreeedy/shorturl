@@ -82,7 +82,11 @@ func TestShortenedURL(t *testing.T) {
 			r.ServeHTTP(w, request)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() {
+				if err := res.Body.Close(); err != nil {
+					log.Printf("Error closing response body: %v", err)
+				}
+			}()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 
@@ -178,7 +182,11 @@ func TestOriginalURL(t *testing.T) {
 			r.ServeHTTP(w, request)
 
 			res := w.Result()
-			defer res.Body.Close()
+			defer func() {
+				if err := res.Body.Close(); err != nil {
+					log.Printf("Error closing response body: %v", err)
+				}
+			}()
 
 			assert.Equal(t, test.want.code, res.StatusCode)
 			if test.want.code == 307 {

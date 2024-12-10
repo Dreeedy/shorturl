@@ -89,9 +89,9 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 
 	ref.Storage.SetURL(hash, originalURL)
 
-	config := ref.Config.GetConfig()
+	cfg := ref.Config.GetConfig()
 
-	parts := []string{config.BaseURL, "/", hash}
+	parts := []string{cfg.BaseURL, "/", hash}
 	shortenedURL := strings.Join(parts, "")
 
 	return shortenedURL, nil
@@ -106,7 +106,9 @@ func (ref *HTTPHandler) generateRandomHash() string {
 
 	rand.Seed(tUnixUint64)
 	b := make([]byte, size) // 8 hex characters.
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
 	return hex.EncodeToString(b)
 }
 
