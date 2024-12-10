@@ -6,17 +6,17 @@ import (
 )
 
 type Config interface {
-	GetConfig() MyConfig
+	GetConfig() HTTPConfig
 }
 
-// MyConfig структура для хранения конфигурации.
-type MyConfig struct {
+// HTTPConfig структура для хранения конфигурации.
+type HTTPConfig struct {
 	RunAddr string
 	BaseURL string
 }
 
-func NewMyConfig() Config {
-	config := &MyConfig{}
+func NewConfig() Config {
+	config := &HTTPConfig{}
 
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address to run HTTP server")
 	flag.StringVar(&config.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
@@ -33,6 +33,6 @@ func NewMyConfig() Config {
 	return config
 }
 
-func (ref *MyConfig) GetConfig() MyConfig {
+func (ref *HTTPConfig) GetConfig() HTTPConfig {
 	return *ref
 }

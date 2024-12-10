@@ -34,10 +34,10 @@ func (m *MockConfig) EXPECT() *MockConfigMockRecorder {
 }
 
 // GetConfig mocks base method.
-func (m *MockConfig) GetConfig() MyConfig {
+func (m *MockConfig) GetConfig() HTTPConfig {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetConfig")
-	ret0, _ := ret[0].(MyConfig)
+	ret0, _ := ret[0].(HTTPConfig)
 	return ret0
 }
 

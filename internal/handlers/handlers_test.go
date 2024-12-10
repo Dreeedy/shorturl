@@ -24,7 +24,7 @@ func TestShortenedURL(t *testing.T) {
 	mockConfig := config.NewMockConfig(ctrl)
 	mockStorage := storage.NewMockStorage(ctrl)
 
-	handler := NewMyHandler(mockConfig, mockStorage)
+	handler := NewHandler(mockConfig, mockStorage)
 
 	type want struct {
 		code        int
@@ -73,7 +73,7 @@ func TestShortenedURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			mockStorage.EXPECT().Exists(gomock.Any()).Return(false).AnyTimes()
 			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any()).AnyTimes()
-			mockConfig.EXPECT().GetConfig().Return(config.MyConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
 
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
@@ -92,7 +92,8 @@ func TestShortenedURL(t *testing.T) {
 			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
 			if test.want.code == 201 {
 				assert.True(t, strings.HasPrefix(string(resBody), "http://localhost:8080/"))
-				assert.Equal(t, 8, len(strings.TrimPrefix(string(resBody), "http://localhost:8080/"))) // Check the length of the hash.
+				// Check the length of the hash.
+				assert.Equal(t, 8, len(strings.TrimPrefix(string(resBody), "http://localhost:8080/")))
 			} else {
 				assert.Equal(t, test.want.response, string(resBody))
 			}
@@ -107,7 +108,7 @@ func TestOriginalURL(t *testing.T) {
 	mockConfig := config.NewMockConfig(ctrl)
 	mockStorage := storage.NewMockStorage(ctrl)
 
-	handler := NewMyHandler(mockConfig, mockStorage)
+	handler := NewHandler(mockConfig, mockStorage)
 
 	type want struct {
 		code        int
@@ -170,7 +171,7 @@ func TestOriginalURL(t *testing.T) {
 				mockStorage.EXPECT().GetURL(id).Return("", false)
 			}
 
-			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			request := httptest.NewRequest(http.MethodGet, test.path, http.NoBody)
 			w := httptest.NewRecorder()
 
 			// Use the router to serve the request.

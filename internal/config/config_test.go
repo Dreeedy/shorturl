@@ -17,12 +17,12 @@ func TestGetConfig(t *testing.T) {
 		name     string
 		args     []string
 		envVars  map[string]string
-		expected MyConfig
+		expected HTTPConfig
 	}{
 		{
 			name: "default values",
 			args: []string{"cmd"},
-			expected: MyConfig{
+			expected: HTTPConfig{
 				RunAddr: ":8080",
 				BaseURL: "http://localhost:8080",
 			},
@@ -30,7 +30,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			name: "flag custom values",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
-			expected: MyConfig{
+			expected: HTTPConfig{
 				RunAddr: ":8888",
 				BaseURL: "http://127.0.0.1:8888",
 			},
@@ -42,7 +42,7 @@ func TestGetConfig(t *testing.T) {
 				"SERVER_ADDRESS": ":8081",
 				"BASE_URL":       "http://example.com:8081",
 			},
-			expected: MyConfig{
+			expected: HTTPConfig{
 				RunAddr: ":8081",
 				BaseURL: "http://example.com:8081",
 			},
@@ -54,18 +54,19 @@ func TestGetConfig(t *testing.T) {
 				"SERVER_ADDRESS": ":8081",
 				"BASE_URL":       "http://example.com:8081",
 			},
-			expected: MyConfig{
+			expected: HTTPConfig{
 				RunAddr: ":8081",
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения, так и флагов командной строки.
+		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения,
+			// так и флагов командной строки.
 			name: "mixed environment variables and flags",
 			args: []string{"cmd", "-a", ":8888"},
 			envVars: map[string]string{
 				"BASE_URL": "http://example.com:8081",
 			},
-			expected: MyConfig{
+			expected: HTTPConfig{
 				RunAddr: ":8888",
 				BaseURL: "http://example.com:8081",
 			},
@@ -84,7 +85,7 @@ func TestGetConfig(t *testing.T) {
 			}
 
 			// Create a new instance of MyConfig and get the config.
-			config := NewMyConfig()
+			config := NewConfig()
 			cfg := config.GetConfig()
 
 			// Assert the expected values.

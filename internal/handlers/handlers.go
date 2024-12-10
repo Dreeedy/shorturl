@@ -21,21 +21,21 @@ type Handler interface {
 	generateRandomHash() string
 }
 
-type MyHandler struct {
+type HTTPHandler struct {
 	Config  config.Config
 	Storage storage.Storage
 }
 
-func NewMyHandler(config config.Config, storage storage.Storage) Handler {
-	handler := &MyHandler{
-		Config:  config,
-		Storage: storage,
+func NewHandler(cfg config.Config, stg storage.Storage) Handler {
+	handler := &HTTPHandler{
+		Config:  cfg,
+		Storage: stg,
 	}
 
 	return handler
 }
 
-func (ref *MyHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
+func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -46,7 +46,11 @@ func (ref *MyHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, "Unable to read request body", http.StatusBadRequest)
 		return
 	}
-	defer req.Body.Close()
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			http.Error(res, "Unable to close request body", http.StatusInternalServerError)
+		}
+	}()
 
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {
@@ -62,15 +66,17 @@ func (ref *MyHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
 
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(shortenedURL))
+	if _, err := res.Write([]byte(shortenedURL)); err != nil {
+		http.Error(res, "Unable to write response", http.StatusInternalServerError)
+	}
 }
 
 // Функция для генерации сокращённого URL.
-func (ref *MyHandler) generateShortenedURL(originalURL string) (string, error) {
-	const maxAttempts = 10
+func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error) {
+	const maxAttempts int = 10
 	var hash string
 
-	for attempts := 0; attempts < maxAttempts; attempts++ {
+	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
 		if !ref.Storage.Exists(hash) {
 			break
@@ -92,17 +98,19 @@ func (ref *MyHandler) generateShortenedURL(originalURL string) (string, error) {
 }
 
 // Функция для генерации случайного хеша фиксированной длины.
-func (ref *MyHandler) generateRandomHash() string {
+func (ref *HTTPHandler) generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
 	tUnixUint64 := uint64(tUnixNano)
 
+	const size int = 4
+
 	rand.Seed(tUnixUint64)
-	b := make([]byte, 4) // 8 hex characters.
+	b := make([]byte, size) // 8 hex characters.
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
-func (ref *MyHandler) OriginalURL(res http.ResponseWriter, req *http.Request) {
+func (ref *HTTPHandler) OriginalURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
