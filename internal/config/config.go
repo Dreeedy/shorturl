@@ -9,7 +9,7 @@ type Config interface {
 	GetConfig() HTTPConfig
 }
 
-// HTTPConfig структура для хранения конфигурации.
+// HTTPConfig structure for storing the configuration.
 type HTTPConfig struct {
 	RunAddr string
 	BaseURL string
@@ -22,7 +22,7 @@ func NewConfig() Config {
 	flag.StringVar(&config.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
 	flag.Parse()
 
-	// Переопределение значений из переменных окружения, если они установлены.
+	// Override values from environment variables if they are set.
 	if envRunAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok && envRunAddr != "" {
 		config.RunAddr = envRunAddr
 	}

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// LoggingRQMiddleware логгирует все запросы к серверу.
+// LoggingRQMiddleware logs all requests to the server.
 func LoggingRQMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("")

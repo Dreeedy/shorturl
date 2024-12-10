@@ -71,7 +71,7 @@ func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request)
 	}
 }
 
-// Функция для генерации сокращённого URL.
+// Function to generate an abbreviated URL.
 func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts int = 10
 	var hash string
@@ -97,7 +97,7 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 	return shortenedURL, nil
 }
 
-// Функция для генерации случайного хеша фиксированной длины.
+// Function for generating a random hash of fixed length.
 func (ref *HTTPHandler) generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
 	tUnixUint64 := uint64(tUnixNano)
