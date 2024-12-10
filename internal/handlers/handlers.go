@@ -1,10 +1,10 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
