@@ -2,6 +2,9 @@
 Форматирование всех .go файлов
 go fmt ./...
 
+make golangci-lint-clean
+make golangci-lint-run
+
 Актуализация всех зависимостей
 go mod tidy
 ## Тестирование

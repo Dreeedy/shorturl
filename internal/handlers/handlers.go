@@ -73,7 +73,7 @@ func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request)
 // Function to generate an abbreviated URL.
 func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts int = 10
-	var attempts int = 0
+	var attempts = 0
 	var hash string
 
 	for range [maxAttempts]struct{}{} {
