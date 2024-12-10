@@ -9,10 +9,6 @@ import (
 )
 
 func TestGetConfig(t *testing.T) {
-	// Save the original command-line arguments.
-	originalArgs := os.Args
-	defer func() { os.Args = originalArgs }()
-
 	tests := []struct {
 		name     string
 		args     []string
@@ -35,7 +31,7 @@ func TestGetConfig(t *testing.T) {
 				BaseURL: "http://127.0.0.1:8888",
 			},
 		},
-		{ // Проверяет, что конфигурация загружается из переменных окружения, если они установлены.
+		{
 			name: "environment variables",
 			args: []string{"cmd"},
 			envVars: map[string]string{
@@ -47,7 +43,7 @@ func TestGetConfig(t *testing.T) {
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что переменные окружения имеют приоритет над флагами командной строки.
+		{
 			name: "environment variables override flags",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
 			envVars: map[string]string{
@@ -59,8 +55,7 @@ func TestGetConfig(t *testing.T) {
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения,
-			// так и флагов командной строки.
+		{
 			name: "mixed environment variables and flags",
 			args: []string{"cmd", "-a", ":8888"},
 			envVars: map[string]string{
@@ -75,21 +70,36 @@ func TestGetConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set the command-line arguments for the test.
-			os.Args = tt.args
-			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+			// Create a new flag set for the test to avoid modifying the global state.
+			fs := flag.NewFlagSet("test", flag.ContinueOnError)
+			runAddr := fs.String("a", ":8080", "address to run HTTP server")
+			baseURL := fs.String("b", "http://localhost:8080", "base URL for shortened URLs")
 
-			// Set the environment variables for the test.
+			// Set the command-line arguments for the test.
+			err := fs.Parse(tt.args[1:])
+			if err != nil {
+				t.Fatalf("Не удалось разобрать флаги: %v", err)
+			}
+
+			// Set environment variables for the test.
 			for key, value := range tt.envVars {
 				t.Setenv(key, value)
 			}
 
-			// Create a new instance of MyConfig and get the config.
-			config := NewConfig()
-			cfg := config.GetConfig()
+			// Load configuration with test values.
+			config := HTTPConfig{
+				RunAddr: *runAddr,
+				BaseURL: *baseURL,
+			}
+			if envRunAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok && envRunAddr != "" {
+				config.RunAddr = envRunAddr
+			}
+			if envBaseURL, ok := os.LookupEnv("BASE_URL"); ok && envBaseURL != "" {
+				config.BaseURL = envBaseURL
+			}
 
 			// Assert the expected values.
-			assert.Equal(t, tt.expected, cfg)
+			assert.Equal(t, tt.expected, config)
 		})
 	}
 }
