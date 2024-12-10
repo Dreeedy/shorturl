@@ -73,6 +73,7 @@ func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request)
 // Function to generate an abbreviated URL.
 func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts int = 10
+	var attempts int = 0
 	var hash string
 
 	for range [maxAttempts]struct{}{} {
@@ -80,11 +81,13 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 		if !ref.Storage.Exists(hash) {
 			ref.Storage.SetURL(hash, originalURL)
 			break
+		} else {
+			attempts++
 		}
 	}
 
-	if ref.Storage.Exists(hash) {
-		return "", fmt.Errorf("failed to generate unique hash after %d attempts", maxAttempts)
+	if attempts >= maxAttempts {
+		return "", fmt.Errorf("failed to generate unique hash after %d attempts", attempts)
 	}
 
 	cfg := ref.Config.GetConfig()
