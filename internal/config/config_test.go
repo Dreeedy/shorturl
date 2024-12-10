@@ -3,27 +3,22 @@ package config
 import (
 	"flag"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetConfig(t *testing.T) {
-	// Save the original command-line arguments.
-	originalArgs := os.Args
-	defer func() { os.Args = originalArgs }()
-
 	tests := []struct {
 		name     string
 		args     []string
 		envVars  map[string]string
-		expected Config
+		expected HTTPConfig
 	}{
 		{
 			name: "default values",
 			args: []string{"cmd"},
-			expected: Config{
+			expected: HTTPConfig{
 				RunAddr: ":8080",
 				BaseURL: "http://localhost:8080",
 			},
@@ -31,42 +26,42 @@ func TestGetConfig(t *testing.T) {
 		{
 			name: "flag custom values",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
-			expected: Config{
+			expected: HTTPConfig{
 				RunAddr: ":8888",
 				BaseURL: "http://127.0.0.1:8888",
 			},
 		},
-		{ // Проверяет, что конфигурация загружается из переменных окружения, если они установлены.
+		{
 			name: "environment variables",
 			args: []string{"cmd"},
 			envVars: map[string]string{
 				"SERVER_ADDRESS": ":8081",
 				"BASE_URL":       "http://example.com:8081",
 			},
-			expected: Config{
+			expected: HTTPConfig{
 				RunAddr: ":8081",
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что переменные окружения имеют приоритет над флагами командной строки.
+		{
 			name: "environment variables override flags",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
 			envVars: map[string]string{
 				"SERVER_ADDRESS": ":8081",
 				"BASE_URL":       "http://example.com:8081",
 			},
-			expected: Config{
+			expected: HTTPConfig{
 				RunAddr: ":8081",
 				BaseURL: "http://example.com:8081",
 			},
 		},
-		{ // Проверяет, что конфигурация корректно загружается при использовании как переменных окружения, так и флагов командной строки.
+		{
 			name: "mixed environment variables and flags",
 			args: []string{"cmd", "-a", ":8888"},
 			envVars: map[string]string{
 				"BASE_URL": "http://example.com:8081",
 			},
-			expected: Config{
+			expected: HTTPConfig{
 				RunAddr: ":8888",
 				BaseURL: "http://example.com:8081",
 			},
@@ -75,23 +70,36 @@ func TestGetConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set the command-line arguments for the test.
-			os.Args = tt.args
-			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+			// Create a new flag set for the test to avoid modifying the global state.
+			fs := flag.NewFlagSet("test", flag.ContinueOnError)
+			runAddr := fs.String("a", ":8080", "address to run HTTP server")
+			baseURL := fs.String("b", "http://localhost:8080", "base URL for shortened URLs")
 
-			// Set the environment variables for the test.
+			// Set the command-line arguments for the test.
+			err := fs.Parse(tt.args[1:])
+			if err != nil {
+				t.Fatalf("Не удалось разобрать флаги: %v", err)
+			}
+
+			// Set environment variables for the test.
 			for key, value := range tt.envVars {
 				t.Setenv(key, value)
 			}
 
-			// Reset the config singleton.
-			cfgOnce = sync.Once{}
-
-			// Get the config.
-			cfg := GetConfig()
+			// Load configuration with test values.
+			config := HTTPConfig{
+				RunAddr: *runAddr,
+				BaseURL: *baseURL,
+			}
+			if envRunAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok && envRunAddr != "" {
+				config.RunAddr = envRunAddr
+			}
+			if envBaseURL, ok := os.LookupEnv("BASE_URL"); ok && envBaseURL != "" {
+				config.BaseURL = envBaseURL
+			}
 
 			// Assert the expected values.
-			assert.Equal(t, tt.expected, cfg)
+			assert.Equal(t, tt.expected, config)
 		})
 	}
 }

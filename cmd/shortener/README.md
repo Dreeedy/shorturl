@@ -22,3 +22,8 @@ cmd\shortener\
 ### С переменными окружения и флагами командной строки
 Установите переменные окружения и запустите приложение с флагами командной строки (переменные окружения имеют приоритет):
 \$env\:SERVER_ADDRESS=":8081"; \$env\:BASE_URL="http://localhost:8081"; ./shortener -a :8888 -b http://localhost:8888
+
+## Работа с моками
+
+### Пример создание мока
+& "C:\Program Files\Go\bin\bin\mockgen.exe" -source="F:\shorturl\internal\storage\storage.go" -destination="F:\shorturl\internal\storage\storage_mock.go" -package=storage

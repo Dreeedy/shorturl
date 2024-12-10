@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -14,9 +14,28 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-var storageInstance = storage.NewStorage()
+type Handler interface {
+	ShortenedURL(res http.ResponseWriter, req *http.Request)
+	OriginalURL(res http.ResponseWriter, req *http.Request)
+	generateShortenedURL(originalURL string) (string, error)
+	generateRandomHash() string
+}
 
-func ShortenedURL(res http.ResponseWriter, req *http.Request) {
+type HTTPHandler struct {
+	Config  config.Config
+	Storage storage.Storage
+}
+
+func NewHandler(cfg config.Config, stg storage.Storage) Handler {
+	handler := &HTTPHandler{
+		Config:  cfg,
+		Storage: stg,
+	}
+
+	return handler
+}
+
+func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -27,7 +46,11 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 		http.Error(res, "Unable to read request body", http.StatusBadRequest)
 		return
 	}
-	defer req.Body.Close()
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			http.Error(res, "Unable to close request body", http.StatusInternalServerError)
+		}
+	}()
 
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {
@@ -35,49 +58,61 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortenedURL := generateShortenedURL(originalURL)
+	shortenedURL, err := ref.generateShortenedURL(originalURL)
+	if err != nil {
+		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
-	res.Write([]byte(shortenedURL))
+	if _, err := res.Write([]byte(shortenedURL)); err != nil {
+		http.Error(res, "Unable to write response", http.StatusInternalServerError)
+	}
 }
 
 // Функция для генерации сокращённого URL.
-func generateShortenedURL(originalURL string) string {
-	hash := generateHash(originalURL)
+func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error) {
+	const maxAttempts int = 10
+	var hash string
 
-	// Обработка коллизий.
-	for storageInstance.Exists(hash) {
-		hash = generateRandomHash()
+	for range [maxAttempts]struct{}{} {
+		hash = ref.generateRandomHash()
+		if !ref.Storage.Exists(hash) {
+			break
+		}
 	}
 
-	storageInstance.SetURL(hash, originalURL)
+	if ref.Storage.Exists(hash) {
+		return "", fmt.Errorf("failed to generate unique hash after %d attempts", maxAttempts)
+	}
 
-	cfg := config.GetConfig()
+	ref.Storage.SetURL(hash, originalURL)
+
+	cfg := ref.Config.GetConfig()
+
 	parts := []string{cfg.BaseURL, "/", hash}
 	shortenedURL := strings.Join(parts, "")
 
-	return shortenedURL
+	return shortenedURL, nil
 }
 
-// Функция для генерации хеша с использованием SHA-256.
-func generateHash(s string) string {
-	hash := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(hash[:])
-}
-
-// Функция для генерации случайного хеша в случае нахождения коллизии.
-func generateRandomHash() string {
+// Функция для генерации случайного хеша фиксированной длины.
+func (ref *HTTPHandler) generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
 	tUnixUint64 := uint64(tUnixNano)
 
+	const size int = 4
+
 	rand.Seed(tUnixUint64)
-	b := make([]byte, 16)
-	rand.Read(b)
+	b := make([]byte, size) // 8 hex characters.
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
 	return hex.EncodeToString(b)
 }
 
-func OriginalURL(res http.ResponseWriter, req *http.Request) {
+func (ref *HTTPHandler) OriginalURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -85,7 +120,7 @@ func OriginalURL(res http.ResponseWriter, req *http.Request) {
 
 	id := chi.URLParam(req, "id")
 
-	originalURL, found := storageInstance.GetURL(id)
+	originalURL, found := ref.Storage.GetURL(id)
 
 	if !found {
 		http.Error(res, "URL not found", http.StatusBadRequest)
