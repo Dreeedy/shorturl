@@ -3,7 +3,6 @@ package config
 import (
 	"flag"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,12 +17,12 @@ func TestGetConfig(t *testing.T) {
 		name     string
 		args     []string
 		envVars  map[string]string
-		expected Config
+		expected MyConfig
 	}{
 		{
 			name: "default values",
 			args: []string{"cmd"},
-			expected: Config{
+			expected: MyConfig{
 				RunAddr: ":8080",
 				BaseURL: "http://localhost:8080",
 			},
@@ -31,7 +30,7 @@ func TestGetConfig(t *testing.T) {
 		{
 			name: "flag custom values",
 			args: []string{"cmd", "-a", ":8888", "-b", "http://127.0.0.1:8888"},
-			expected: Config{
+			expected: MyConfig{
 				RunAddr: ":8888",
 				BaseURL: "http://127.0.0.1:8888",
 			},
@@ -43,7 +42,7 @@ func TestGetConfig(t *testing.T) {
 				"SERVER_ADDRESS": ":8081",
 				"BASE_URL":       "http://example.com:8081",
 			},
-			expected: Config{
+			expected: MyConfig{
 				RunAddr: ":8081",
 				BaseURL: "http://example.com:8081",
 			},
@@ -55,7 +54,7 @@ func TestGetConfig(t *testing.T) {
 				"SERVER_ADDRESS": ":8081",
 				"BASE_URL":       "http://example.com:8081",
 			},
-			expected: Config{
+			expected: MyConfig{
 				RunAddr: ":8081",
 				BaseURL: "http://example.com:8081",
 			},
@@ -66,7 +65,7 @@ func TestGetConfig(t *testing.T) {
 			envVars: map[string]string{
 				"BASE_URL": "http://example.com:8081",
 			},
-			expected: Config{
+			expected: MyConfig{
 				RunAddr: ":8888",
 				BaseURL: "http://example.com:8081",
 			},
@@ -84,11 +83,9 @@ func TestGetConfig(t *testing.T) {
 				t.Setenv(key, value)
 			}
 
-			// Reset the config singleton.
-			cfgOnce = sync.Once{}
-
-			// Get the config.
-			cfg := GetConfig()
+			// Create a new instance of MyConfig and get the config.
+			config := NewMyConfig()
+			cfg := config.GetConfig()
 
 			// Assert the expected values.
 			assert.Equal(t, tt.expected, cfg)

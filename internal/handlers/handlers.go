@@ -14,9 +14,28 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-var storageInstance = storage.NewStorage()
+type Handler interface {
+	ShortenedURL(res http.ResponseWriter, req *http.Request)
+	OriginalURL(res http.ResponseWriter, req *http.Request)
+	generateShortenedURL(originalURL string) (string, error)
+	generateRandomHash() string
+}
 
-func ShortenedURL(res http.ResponseWriter, req *http.Request) {
+type MyHandler struct {
+	Config  config.Config
+	Storage storage.Storage
+}
+
+func NewMyHandler(config config.Config, storage storage.Storage) Handler {
+	handler := &MyHandler{
+		Config:  config,
+		Storage: storage,
+	}
+
+	return handler
+}
+
+func (ref *MyHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -35,7 +54,7 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortenedURL, err := generateShortenedURL(originalURL)
+	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
 		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
 		return
@@ -47,32 +66,33 @@ func ShortenedURL(res http.ResponseWriter, req *http.Request) {
 }
 
 // Функция для генерации сокращённого URL.
-func generateShortenedURL(originalURL string) (string, error) {
+func (ref *MyHandler) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts = 10
 	var hash string
 
 	for attempts := 0; attempts < maxAttempts; attempts++ {
-		hash = generateRandomHash()
-		if !storageInstance.Exists(hash) {
+		hash = ref.generateRandomHash()
+		if !ref.Storage.Exists(hash) {
 			break
 		}
 	}
 
-	if storageInstance.Exists(hash) {
+	if ref.Storage.Exists(hash) {
 		return "", fmt.Errorf("failed to generate unique hash after %d attempts", maxAttempts)
 	}
 
-	storageInstance.SetURL(hash, originalURL)
+	ref.Storage.SetURL(hash, originalURL)
 
-	cfg := config.GetConfig()
-	parts := []string{cfg.BaseURL, "/", hash}
+	config := ref.Config.GetConfig()
+
+	parts := []string{config.BaseURL, "/", hash}
 	shortenedURL := strings.Join(parts, "")
 
 	return shortenedURL, nil
 }
 
 // Функция для генерации случайного хеша фиксированной длины.
-func generateRandomHash() string {
+func (ref *MyHandler) generateRandomHash() string {
 	tUnixNano := time.Now().UnixNano()
 	tUnixUint64 := uint64(tUnixNano)
 
@@ -82,7 +102,7 @@ func generateRandomHash() string {
 	return hex.EncodeToString(b)
 }
 
-func OriginalURL(res http.ResponseWriter, req *http.Request) {
+func (ref *MyHandler) OriginalURL(res http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(res, "Invalid request method", http.StatusBadRequest)
 		return
@@ -90,7 +110,7 @@ func OriginalURL(res http.ResponseWriter, req *http.Request) {
 
 	id := chi.URLParam(req, "id")
 
-	originalURL, found := storageInstance.GetURL(id)
+	originalURL, found := ref.Storage.GetURL(id)
 
 	if !found {
 		http.Error(res, "URL not found", http.StatusBadRequest)

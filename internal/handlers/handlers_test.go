@@ -9,12 +9,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storage"
 	"github.com/go-chi/chi"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestShortenedURL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConfig := config.NewMockConfig(ctrl)
+	mockStorage := storage.NewMockStorage(ctrl)
+
+	handler := NewMyHandler(mockConfig, mockStorage)
+
 	type want struct {
 		code        int
 		response    string
@@ -56,10 +67,14 @@ func TestShortenedURL(t *testing.T) {
 
 	// Initialize the router.
 	r := chi.NewRouter()
-	r.Post("/", ShortenedURL)
+	r.Post("/", handler.ShortenedURL)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			mockStorage.EXPECT().Exists(gomock.Any()).Return(false).AnyTimes()
+			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any()).AnyTimes()
+			mockConfig.EXPECT().GetConfig().Return(config.MyConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
 
@@ -86,6 +101,14 @@ func TestShortenedURL(t *testing.T) {
 }
 
 func TestOriginalURL(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConfig := config.NewMockConfig(ctrl)
+	mockStorage := storage.NewMockStorage(ctrl)
+
+	handler := NewMyHandler(mockConfig, mockStorage)
+
 	type want struct {
 		code        int
 		location    string
@@ -96,24 +119,24 @@ func TestOriginalURL(t *testing.T) {
 		path string
 		want want
 	}{
-		// {
-		// 	name: "valid ID",
-		// 	path: "/8a992351", // Example short hash.
-		// 	want: want{
-		// 		code:        307,
-		// 		location:    "https://practicum.yandex.ru",
-		// 		contentType: "",
-		// 	},
-		// },
-		// {
-		// 	name: "valid ID 2",
-		// 	path: "/d0e196a0", // Example short hash.
-		// 	want: want{
-		// 		code:        307,
-		// 		location:    "https://www.google.com/",
-		// 		contentType: "",
-		// 	},
-		// },
+		{
+			name: "valid ID",
+			path: "/8a992351", // Example short hash.
+			want: want{
+				code:        307,
+				location:    "https://practicum.yandex.ru",
+				contentType: "",
+			},
+		},
+		{
+			name: "valid ID 2",
+			path: "/d0e196a0", // Example short hash.
+			want: want{
+				code:        307,
+				location:    "https://www.google.com/",
+				contentType: "",
+			},
+		},
 		{
 			name: "Invalid ID",
 			path: "/1234567",
@@ -136,10 +159,17 @@ func TestOriginalURL(t *testing.T) {
 
 	// Initialize the router.
 	r := chi.NewRouter()
-	r.Get("/{id}", OriginalURL)
+	r.Get("/{id}", handler.OriginalURL)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			id := strings.TrimPrefix(test.path, "/")
+			if test.want.code == 307 {
+				mockStorage.EXPECT().GetURL(id).Return(test.want.location, true)
+			} else {
+				mockStorage.EXPECT().GetURL(id).Return("", false)
+			}
+
 			request := httptest.NewRequest(http.MethodGet, test.path, nil)
 			w := httptest.NewRecorder()
 

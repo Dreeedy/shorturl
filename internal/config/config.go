@@ -3,38 +3,36 @@ package config
 import (
 	"flag"
 	"os"
-	"sync"
 )
 
-// Config структура для хранения конфигурации.
-type Config struct {
+type Config interface {
+	GetConfig() MyConfig
+}
+
+// MyConfig структура для хранения конфигурации.
+type MyConfig struct {
 	RunAddr string
 	BaseURL string
 }
 
-var (
-	cfg Config
-	// Использование sync.Once для гарантии однократной инициализации конфигурации.
-	cfgOnce sync.Once
-)
+func NewMyConfig() Config {
+	config := &MyConfig{}
 
-// parseFlags функция для инициализации полей структуры Config на основе аргументов командной строки.
-func parseFlags() {
-	flag.StringVar(&cfg.RunAddr, "a", ":8080", "address to run HTTP server")
-	flag.StringVar(&cfg.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
+	flag.StringVar(&config.RunAddr, "a", ":8080", "address to run HTTP server")
+	flag.StringVar(&config.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
 	flag.Parse()
 
 	// Переопределение значений из переменных окружения, если они установлены.
 	if envRunAddr, ok := os.LookupEnv("SERVER_ADDRESS"); ok && envRunAddr != "" {
-		cfg.RunAddr = envRunAddr
+		config.RunAddr = envRunAddr
 	}
 	if envBaseURL, ok := os.LookupEnv("BASE_URL"); ok && envBaseURL != "" {
-		cfg.BaseURL = envBaseURL
+		config.BaseURL = envBaseURL
 	}
+
+	return config
 }
 
-// GetConfig функция для получения конфигурации.
-func GetConfig() Config {
-	cfgOnce.Do(parseFlags)
-	return cfg
+func (ref *MyConfig) GetConfig() MyConfig {
+	return *ref
 }
