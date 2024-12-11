@@ -83,8 +83,7 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
 
-		if !ref.Storage.Exists(hash) {
-			ref.Storage.SetURL(hash, originalURL)
+		if err := ref.Storage.SetURL(hash, originalURL); err == nil {
 			break
 		}
 

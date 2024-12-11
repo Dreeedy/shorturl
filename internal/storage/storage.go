@@ -1,13 +1,13 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 )
 
 type Storage interface {
-	SetURL(hash, originalURL string)
+	SetURL(hash, originalURL string) error
 	GetURL(hash string) (string, bool)
-	Exists(hash string) bool
 }
 
 // MyStorage is a structure for storing URLs and a mutex.
@@ -27,10 +27,16 @@ func NewStorage() Storage {
 }
 
 // SetURL saves a URL in the storage.
-func (s *MyStorage) SetURL(hash, originalURL string) {
+func (s *MyStorage) SetURL(hash, originalURL string) error {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
+
+	if _, exists := s.urlMap[hash]; exists {
+		return errors.New("hash already exists")
+	}
+
 	s.urlMap[hash] = originalURL
+	return nil
 }
 
 // GetURL retrieves a URL from the storage.
@@ -39,12 +45,4 @@ func (s *MyStorage) GetURL(hash string) (string, bool) {
 	defer s.urlMapMux.Unlock()
 	originalURL, ok := s.urlMap[hash]
 	return originalURL, ok
-}
-
-// Exists checks if a URL exists in the storage.
-func (s *MyStorage) Exists(hash string) bool {
-	s.urlMapMux.Lock()
-	defer s.urlMapMux.Unlock()
-	_, found := s.urlMap[hash]
-	return found
 }

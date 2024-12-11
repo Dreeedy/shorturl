@@ -63,9 +63,11 @@ func (mr *MockStorageMockRecorder) GetURL(hash interface{}) *gomock.Call {
 }
 
 // SetURL mocks base method.
-func (m *MockStorage) SetURL(hash, originalURL string) {
+func (m *MockStorage) SetURL(hash, originalURL string) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetURL", hash, originalURL)
+	ret := m.ctrl.Call(m, "SetURL", hash, originalURL)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // SetURL indicates an expected call of SetURL.
