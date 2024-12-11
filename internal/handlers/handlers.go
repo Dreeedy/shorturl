@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -49,7 +50,8 @@ func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request)
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			http.Error(res, "Unable to close request body", http.StatusInternalServerError)
+			log.Printf("Unable to close request body: %v", err)
+			http.Error(res, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}()
 
@@ -61,14 +63,16 @@ func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request)
 
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
-		http.Error(res, err.Error(), http.StatusInternalServerError)
+		log.Printf("Internal Server Error: %v", err)
+		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
 	res.Header().Set("Content-Type", "text/plain")
 	res.WriteHeader(http.StatusCreated)
 	if _, err := res.Write([]byte(shortenedURL)); err != nil {
-		http.Error(res, "Unable to write response", http.StatusInternalServerError)
+		log.Printf("Unable to write response: %v", err)
+		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
@@ -111,7 +115,7 @@ func (ref *HTTPHandler) generateRandomHash() string {
 
 	b := make([]byte, size) // 8 hex characters.
 	if _, err := rand.Read(b); err != nil {
-		panic(err)
+		log.Fatalf("Unable to generate random hash: %v", err)
 	}
 	return hex.EncodeToString(b)
 }
