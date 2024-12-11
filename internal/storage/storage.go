@@ -43,6 +43,8 @@ func (s *MyStorage) GetURL(hash string) (string, bool) {
 
 // Exists checks if a URL exists in the storage.
 func (s *MyStorage) Exists(hash string) bool {
-	_, found := s.GetURL(hash)
+	s.urlMapMux.Lock()
+	defer s.urlMapMux.Unlock()
+	_, found := s.urlMap[hash]
 	return found
 }
