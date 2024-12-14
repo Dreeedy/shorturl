@@ -6,17 +6,20 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/handlers"
-	"github.com/Dreeedy/shorturl/internal/middlewares"
-	"github.com/Dreeedy/shorturl/internal/storage"
+	"github.com/Dreeedy/shorturl/internal/middlewares/httplogger"
+	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
+	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 )
 
 func main() {
-	cfg := config.NewConfig()
-	stg := storage.NewStorage()
-	httpHandler := handlers.NewHandler(cfg, stg)
-	httpConfig := cfg.GetConfig()
+	newConfig := config.NewConfig()
+	httpConfig := newConfig.GetConfig()
+	newStorage := ramstorage.NewStorage()
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage)
+	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
+	newHttpLogger := httplogger.NewHttpLogger(newConfig, newZapLogger)
 
 	// Выводим конфигурацию.
 	log.Printf("Running server on %s\n", httpConfig.RunAddr)
@@ -24,10 +27,10 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger) // Use the built-in logger middleware from chi.
-	router.Use(middlewares.LoggingRQMiddleware)
+	router.Use(newHttpLogger.RqRsLogger)
 
-	router.Post("/", httpHandler.ShortenedURL)
-	router.Get("/{id}", httpHandler.OriginalURL)
+	router.Post("/", newHandlerHTTP.ShortenedURL)
+	router.Get("/{id}", newHandlerHTTP.OriginalURL)
 
 	err := http.ListenAndServe(httpConfig.RunAddr, router)
 	if err != nil {
