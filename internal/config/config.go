@@ -11,8 +11,9 @@ type Config interface {
 
 // HTTPConfig structure for storing the configuration.
 type HTTPConfig struct {
-	RunAddr string
-	BaseURL string
+	RunAddr      string
+	BaseURL      string
+	FlagLogLevel string
 }
 
 func NewConfig() Config {
@@ -20,6 +21,7 @@ func NewConfig() Config {
 
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address to run HTTP server")
 	flag.StringVar(&config.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
+	flag.StringVar(&config.FlagLogLevel, "l", "info", "log level")
 	flag.Parse()
 
 	// Override values from environment variables if they are set.
@@ -28,6 +30,9 @@ func NewConfig() Config {
 	}
 	if envBaseURL, ok := os.LookupEnv("BASE_URL"); ok && envBaseURL != "" {
 		config.BaseURL = envBaseURL
+	}
+	if envFlagLogLevel, ok := os.LookupEnv("LOG_LEVEL"); ok && envFlagLogLevel != "" {
+		config.FlagLogLevel = envFlagLogLevel
 	}
 
 	return config
