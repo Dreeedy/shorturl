@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/Dreeedy/shorturl/internal/config"
-	"github.com/Dreeedy/shorturl/internal/storage"
+	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
 	"github.com/go-chi/chi"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -22,9 +22,9 @@ func TestShortenedURL(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockConfig := config.NewMockConfig(ctrl)
-	mockStorage := storage.NewMockStorage(ctrl)
+	mockStorage := ramstorage.NewMockStorage(ctrl)
 
-	handler := NewHandler(mockConfig, mockStorage)
+	handler := NewhandlerHTTP(mockConfig, mockStorage)
 
 	type want struct {
 		code        int
@@ -71,7 +71,6 @@ func TestShortenedURL(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			mockStorage.EXPECT().Exists(gomock.Any()).Return(false).AnyTimes()
 			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
 
@@ -110,9 +109,9 @@ func TestOriginalURL(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockConfig := config.NewMockConfig(ctrl)
-	mockStorage := storage.NewMockStorage(ctrl)
+	mockStorage := ramstorage.NewMockStorage(ctrl)
 
-	handler := NewHandler(mockConfig, mockStorage)
+	handler := NewhandlerHTTP(mockConfig, mockStorage)
 
 	type want struct {
 		code        int
