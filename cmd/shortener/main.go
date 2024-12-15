@@ -19,7 +19,7 @@ func main() {
 	newStorage := ramstorage.NewStorage()
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage)
 	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
-	newHttpLogger := httplogger.NewHttpLogger(newConfig, newZapLogger)
+	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 
 	// Выводим конфигурацию.
 	log.Printf("Running server on %s\n", httpConfig.RunAddr)
@@ -27,7 +27,7 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger) // Use the built-in logger middleware from chi.
-	router.Use(newHttpLogger.RqRsLogger)
+	router.Use(newHTTPLogger.RqRsLogger)
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)

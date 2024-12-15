@@ -18,7 +18,7 @@ type httpLogger struct {
 	log zaplogger.Logger
 }
 
-func NewHttpLogger(config config.Config, logger zaplogger.Logger) *httpLogger {
+func NewHTTPLogger(config config.Config, logger zaplogger.Logger) *httpLogger {
 	return &httpLogger{
 		cfg: config,
 		log: logger,

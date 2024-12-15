@@ -35,11 +35,11 @@ func NewhandlerHTTP(config config.Config, storage ramstorage.Storage) *handlerHT
 	}
 }
 
-type ShortenApiRq struct {
-	Url string `json:"url"`
+type ShortenAPIRq struct {
+	URL string `json:"url"`
 }
 
-type ShortenApiRs struct {
+type ShortenAPIRs struct {
 	Result string `json:"result"`
 }
 
@@ -98,32 +98,32 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var shortenApiRq ShortenApiRq
+	var shortenAPIRq ShortenAPIRq
 
-	if err = json.Unmarshal(buf.Bytes(), &shortenApiRq); err != nil {
+	if err = json.Unmarshal(buf.Bytes(), &shortenAPIRq); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	shortenedURL, err := ref.generateShortenedURL(shortenApiRq.Url)
+	shortenedURL, err := ref.generateShortenedURL(shortenAPIRq.URL)
 	if err != nil {
 		log.Printf("Internal Server Error: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	var shortenApiRs = ShortenApiRs{
+	var shortenAPIRs = ShortenAPIRs{
 		Result: shortenedURL,
 	}
 
-	resp, err := json.Marshal(shortenApiRs)
+	resp, err := json.Marshal(shortenAPIRs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
 		log.Printf("Unable to write response: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
