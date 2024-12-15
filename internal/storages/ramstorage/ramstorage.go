@@ -1,4 +1,4 @@
-package storage
+package ramstorage
 
 import (
 	"errors"
@@ -10,24 +10,22 @@ type Storage interface {
 	GetURL(hash string) (string, bool)
 }
 
-// MyStorage is a structure for storing URLs and a mutex.
-type MyStorage struct {
+// ramStorage is a structure for storing URLs and a mutex.
+type ramStorage struct {
 	urlMap    map[string]string
 	urlMapMux *sync.Mutex
 }
 
 // NewStorage creates a new instance of Storage.
-func NewStorage() Storage {
-	storage := &MyStorage{
+func NewStorage() *ramStorage {
+	return &ramStorage{
 		urlMap:    make(map[string]string),
 		urlMapMux: &sync.Mutex{},
 	}
-
-	return storage
 }
 
 // SetURL saves a URL in the storage.
-func (s *MyStorage) SetURL(hash, originalURL string) error {
+func (s *ramStorage) SetURL(hash, originalURL string) error {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
 
@@ -40,7 +38,7 @@ func (s *MyStorage) SetURL(hash, originalURL string) error {
 }
 
 // GetURL retrieves a URL from the storage.
-func (s *MyStorage) GetURL(hash string) (string, bool) {
+func (s *ramStorage) GetURL(hash string) (string, bool) {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
 	originalURL, ok := s.urlMap[hash]
