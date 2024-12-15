@@ -1,6 +1,7 @@
 package httplogger
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -18,10 +19,10 @@ type httpLogger struct {
 	log zaplogger.Logger
 }
 
-func NewHTTPLogger(config config.Config, logger zaplogger.Logger) *httpLogger {
+func NewHTTPLogger(newConfig config.Config, newLogger zaplogger.Logger) *httpLogger {
 	return &httpLogger{
-		cfg: config,
-		log: logger,
+		cfg: newConfig,
+		log: newLogger,
 	}
 }
 
@@ -57,6 +58,10 @@ func (r *responseRecorder) WriteHeader(code int) {
 
 func (r *responseRecorder) Write(bytes []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(bytes)
+	if err != nil {
+		return size, fmt.Errorf("failed to write response: %w", err)
+	}
 	r.size += size
+
 	return size, err
 }

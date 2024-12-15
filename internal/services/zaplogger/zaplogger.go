@@ -1,6 +1,8 @@
 package zaplogger
 
 import (
+	"fmt"
+
 	"github.com/Dreeedy/shorturl/internal/config"
 	"go.uber.org/zap"
 )
@@ -14,21 +16,21 @@ type zapLogger struct {
 	logger *zap.Logger
 }
 
-// Initialize инициализирует синглтон логера с необходимым уровнем логирования.
+// NewZapLogger Initialize initializes the logger singleton with the required logging level.
 func NewZapLogger(cfg config.Config) (Logger, error) {
-	// преобразуем текстовый уровень логирования в zap.AtomicLevel
+	// convert the text logging level to zap.AtomicLevel.
 	lvl, err := zap.ParseAtomicLevel(cfg.GetConfig().FlagLogLevel)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse atomic level: %w", err)
 	}
-	// создаём новую конфигурацию логера
+	// create a new logger configuration.
 	zapCfg := zap.NewProductionConfig()
-	// устанавливаем уровень
+	// set the level.
 	zapCfg.Level = lvl
-	// создаём логер на основе конфигурации
+	// create a logger based on the configuration.
 	zl, err := zapCfg.Build()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build logger: %w", err)
 	}
 
 	return &zapLogger{
@@ -36,7 +38,7 @@ func NewZapLogger(cfg config.Config) (Logger, error) {
 	}, nil
 }
 
-// Info реализация метода Info для ZapLogger
+// Info implementation of the Info method for ZapLogger.
 func (z *zapLogger) Info(msg string, fields ...zap.Field) {
 	z.logger.Info(msg, fields...)
 }
