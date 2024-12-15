@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -192,6 +193,105 @@ func TestOriginalURL(t *testing.T) {
 				assert.Equal(t, test.want.location, res.Header.Get("Location"))
 			} else {
 				assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
+			}
+		})
+	}
+}
+
+func TestShorten(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConfig := config.NewMockConfig(ctrl)
+	mockStorage := ramstorage.NewMockStorage(ctrl)
+
+	handler := NewhandlerHTTP(mockConfig, mockStorage)
+
+	type want struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name string
+		body string
+		want want
+	}{
+		{
+			name: "valid URL",
+			body: `{"url": "https://practicum.yandex.ru"}`,
+			want: want{
+				code:        201,
+				response:    `{"result":"http://localhost:8080/"}`, // The exact hash will be checked later.
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "valid URL 2",
+			body: `{"url": "https://www.google.com/"}`,
+			want: want{
+				code:        201,
+				response:    `{"result":"http://localhost:8080/"}`, // The exact hash will be checked later.
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "empty URL",
+			body: `{"url": ""}`,
+			want: want{
+				code:        400,
+				response:    "URL is empty\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "invalid JSON",
+			body: `{"url": "https://practicum.yandex.ru"`, // Missing closing brace.
+			want: want{
+				code:        400,
+				response:    "Unable to read request body\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	// Initialize the router.
+	r := chi.NewRouter()
+	r.Post("/shorten", handler.Shorten)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any()).AnyTimes()
+			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+
+			request := httptest.NewRequest(http.MethodPost, "/shorten", bytes.NewBufferString(test.body))
+			w := httptest.NewRecorder()
+
+			// Use the router to serve the request.
+			r.ServeHTTP(w, request)
+
+			res := w.Result()
+			defer func() {
+				if err := res.Body.Close(); err != nil {
+					log.Printf("Error closing response body: %v", err)
+				}
+			}()
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			log.Printf("TestShorten.resBody: %s", string(resBody))
+
+			assert.Equal(t, test.want.code, res.StatusCode)
+			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
+			if test.want.code == 201 {
+				var shortenAPIRs ShortenAPIRs
+				err := json.Unmarshal(resBody, &shortenAPIRs)
+				require.NoError(t, err)
+				assert.True(t, strings.HasPrefix(shortenAPIRs.Result, "http://localhost:8080/"))
+				// Check the length of the hash.
+				assert.Equal(t, 8, len(strings.TrimPrefix(shortenAPIRs.Result, "http://localhost:8080/")))
+			} else {
+				assert.Equal(t, test.want.response, string(resBody))
 			}
 		})
 	}
