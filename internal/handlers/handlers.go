@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -31,6 +33,14 @@ func NewhandlerHTTP(config config.Config, storage ramstorage.Storage) *handlerHT
 		cfg: config,
 		stg: storage,
 	}
+}
+
+type ShortenApiRq struct {
+	Url string `json:"url"`
+}
+
+type ShortenApiRs struct {
+	Result string `json:"result"`
 }
 
 func (ref *handlerHTTP) ShortenedURL(res http.ResponseWriter, req *http.Request) {
@@ -69,6 +79,54 @@ func (ref *handlerHTTP) ShortenedURL(res http.ResponseWriter, req *http.Request)
 	if _, err := res.Write([]byte(shortenedURL)); err != nil {
 		log.Printf("Unable to write response: %v", err)
 		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// Accepts a JSON object in the body of the request.
+// Returns a JSON object in the response.
+func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		return
+	}
+
+	var buf bytes.Buffer
+
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var shortenApiRq ShortenApiRq
+
+	if err = json.Unmarshal(buf.Bytes(), &shortenApiRq); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	shortenedURL, err := ref.generateShortenedURL(shortenApiRq.Url)
+	if err != nil {
+		log.Printf("Internal Server Error: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	var shortenApiRs = ShortenApiRs{
+		Result: shortenedURL,
+	}
+
+	resp, err := json.Marshal(shortenApiRs)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(resp); err != nil {
+		log.Printf("Unable to write response: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
