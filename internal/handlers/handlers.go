@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -90,38 +89,47 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var buf bytes.Buffer
-
-	_, err := buf.ReadFrom(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	var shortenAPIRq ShortenAPIRq
 
-	if err = json.Unmarshal(buf.Bytes(), &shortenAPIRq); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// Read and parse the request body.
+	if err := json.NewDecoder(req.Body).Decode(&shortenAPIRq); err != nil {
+		http.Error(w, "Unable to read request body", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			log.Printf("Unable to close request body: %v", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	}()
+
+	// Validate the URL.
+	originalURL := strings.TrimSpace(shortenAPIRq.URL)
+	if originalURL == "" {
+		http.Error(w, "URL is empty", http.StatusBadRequest)
 		return
 	}
 
-	shortenedURL, err := ref.generateShortenedURL(shortenAPIRq.URL)
+	// Generate the shortened URL.
+	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
 		log.Printf("Internal Server Error: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	var shortenAPIRs = ShortenAPIRs{
+	// Prepare the response.
+	shortenAPIRs := ShortenAPIRs{
 		Result: shortenedURL,
 	}
 
 	resp, err := json.Marshal(shortenAPIRs)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
+	// Write the response.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
