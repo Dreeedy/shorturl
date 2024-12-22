@@ -11,7 +11,7 @@ import (
 )
 
 type RqRsLogger interface {
-	RequestLogger(msg string, fields ...zap.Field)
+	RqRsLogger(next http.Handler) http.Handler
 }
 
 type httpLogger struct {
