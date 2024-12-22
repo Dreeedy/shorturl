@@ -6,6 +6,7 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/handlers"
+	"github.com/Dreeedy/shorturl/internal/middlewares/gzip"
 	"github.com/Dreeedy/shorturl/internal/middlewares/httplogger"
 	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
 	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
@@ -20,6 +21,7 @@ func main() {
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage)
 	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
 	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
+	newGzipMiddleware := gzip.NewGzipMiddleware(newZapLogger)
 
 	// Выводим конфигурацию.
 	log.Printf("Running server on %s\n", httpConfig.RunAddr)
@@ -28,6 +30,7 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.Logger) // Use the built-in logger middleware from chi.
 	router.Use(newHTTPLogger.RqRsLogger)
+	router.Use(newGzipMiddleware.CompressionHandler)
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
