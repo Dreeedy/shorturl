@@ -15,7 +15,7 @@ type Storage interface {
 	SetURL(uuid, shortURL, originalURL string) error
 	GetURL(shortURL string) (string, bool)
 	LoadFromFile() error
-	SaveToFile() error
+	AppendToFile(data URLData) error
 }
 
 type filestorage struct {
@@ -49,13 +49,9 @@ func (ref *filestorage) SetURL(uuid, shortURL, originalURL string) error {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
-	log.Printf("SetURL 1")
-
 	if _, exists := ref.urlMap[shortURL]; exists {
 		return errors.New("short URL already exists")
 	}
-
-	log.Printf("SetURL 2")
 
 	ref.urlMap[shortURL] = URLData{
 		UUID:        uuid,
@@ -63,9 +59,11 @@ func (ref *filestorage) SetURL(uuid, shortURL, originalURL string) error {
 		OriginalURL: originalURL,
 	}
 
-	log.Printf("SetURL 3")
-
-	return ref.SaveToFile()
+	return ref.AppendToFile(URLData{
+		UUID:        uuid,
+		ShortURL:    shortURL,
+		OriginalURL: originalURL,
+	})
 }
 
 func (ref *filestorage) GetURL(shortURL string) (string, bool) {
@@ -83,25 +81,21 @@ func (ref *filestorage) LoadFromFile() error {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
-	log.Printf("LoadFromFile 1")
-
 	filePath := ref.cfg.GetConfig().FileStoragePath
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		log.Printf("File does not exist, creating: %s", filePath)
 		file, err := os.Create(filePath)
 		if err != nil {
-			log.Printf("err 1: %s", err)
+			log.Printf("err: %s", err)
 			return err
 		}
 		file.Close()
 		return nil // File created, nothing to load.
 	} else if err != nil {
-		log.Printf("err 2: %s", err)
+		log.Printf("err: %s", err)
 		return err
 	}
-
-	log.Printf("LoadFromFile 2")
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -109,8 +103,6 @@ func (ref *filestorage) LoadFromFile() error {
 		return err
 	}
 	defer file.Close()
-
-	log.Printf("LoadFromFile 3")
 
 	decoder := json.NewDecoder(file)
 	for {
@@ -124,32 +116,22 @@ func (ref *filestorage) LoadFromFile() error {
 		ref.urlMap[data.ShortURL] = data
 	}
 
-	log.Printf("LoadFromFile 4")
-
 	return nil
 }
 
-func (ref *filestorage) SaveToFile() error {
-	log.Printf("SaveToFile 1")
-
-	file, err := os.Create(ref.cfg.GetConfig().FileStoragePath)
+func (ref *filestorage) AppendToFile(data URLData) error {
+	file, err := os.OpenFile(ref.cfg.GetConfig().FileStoragePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		log.Printf("SaveToFile err: %s", err)
+		log.Printf("err: %s", err)
 		return err
 	}
 	defer file.Close()
 
-	log.Printf("SaveToFile 2")
-
 	encoder := json.NewEncoder(file)
-	for _, data := range ref.urlMap {
-		if err := encoder.Encode(data); err != nil {
-			log.Printf("SaveToFile 2 err: %s", err)
-			return err
-		}
+	if err := encoder.Encode(data); err != nil {
+		log.Printf("err: %s", err)
+		return err
 	}
-
-	log.Printf("SaveToFile 3")
 
 	return nil
 }

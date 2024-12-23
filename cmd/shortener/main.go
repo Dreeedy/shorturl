@@ -32,11 +32,11 @@ func main() {
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
 
+	log.Printf("Running server on %s\n", httpConfig.RunAddr)
+	log.Printf("Base URL for shortened URLs: %s\n", httpConfig.BaseURL)
+
 	err := http.ListenAndServe(httpConfig.RunAddr, router)
 	if err != nil {
 		log.Fatal("Server failed:", err)
 	}
-
-	log.Printf("Running server on %s\n", httpConfig.RunAddr)
-	log.Printf("Base URL for shortened URLs: %s\n", httpConfig.BaseURL)
 }
