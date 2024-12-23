@@ -11,8 +11,9 @@ import (
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
-	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
+	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
 )
 
 type Handler interface {
@@ -24,10 +25,10 @@ type Handler interface {
 
 type handlerHTTP struct {
 	cfg config.Config
-	stg ramstorage.Storage
+	stg filestorage.Storage
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage ramstorage.Storage) *handlerHTTP {
+func NewhandlerHTTP(newConfig config.Config, newStorage filestorage.Storage) *handlerHTTP {
 	return &handlerHTTP{
 		cfg: newConfig,
 		stg: newStorage,
@@ -83,8 +84,6 @@ func (ref *handlerHTTP) ShortenedURL(res http.ResponseWriter, req *http.Request)
 	}
 }
 
-// Accepts a JSON object in the body of the request.
-// Returns a JSON object in the response.
 func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
@@ -93,7 +92,6 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 
 	var shortenAPIRq ShortenAPIRq
 
-	// Read and parse the request body.
 	if err := json.NewDecoder(req.Body).Decode(&shortenAPIRq); err != nil {
 		http.Error(w, "Unable to read request body", http.StatusBadRequest)
 		return
@@ -105,14 +103,12 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	// Validate the URL.
 	originalURL := strings.TrimSpace(shortenAPIRq.URL)
 	if originalURL == "" {
 		http.Error(w, "URL is empty", http.StatusBadRequest)
 		return
 	}
 
-	// Generate the shortened URL.
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
 		log.Printf("Internal Server Error: %v", err)
@@ -120,7 +116,6 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Prepare the response.
 	shortenAPIRs := ShortenAPIRs{
 		Result: shortenedURL,
 	}
@@ -131,7 +126,6 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Write the response.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
@@ -140,7 +134,6 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// Function to generate an abbreviated URL.
 func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts int = 10
 	var attempts = 0
@@ -149,7 +142,7 @@ func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error)
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
 
-		if err := ref.stg.SetURL(hash, originalURL); err == nil {
+		if err := ref.stg.SetURL(uuid.NewString(), hash, originalURL); err == nil {
 			break
 		}
 
@@ -168,11 +161,10 @@ func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error)
 	return shortenedURL, nil
 }
 
-// Function for generating a random hash of fixed length.
 func (ref *handlerHTTP) generateRandomHash() string {
 	const size int = 4
 
-	b := make([]byte, size) // 8 hex characters.
+	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
 		log.Fatalf("Unable to generate random hash: %v", err)
 	}
@@ -191,10 +183,9 @@ func (ref *handlerHTTP) OriginalURL(res http.ResponseWriter, req *http.Request) 
 
 	if !found {
 		http.Error(res, "URL not found", http.StatusBadRequest)
-		return // Exit after handling this error.
+		return
 	}
 
-	// Set the Location header and send a redirect response.
 	res.Header().Set("Location", originalURL)
 	res.WriteHeader(http.StatusTemporaryRedirect)
 }
