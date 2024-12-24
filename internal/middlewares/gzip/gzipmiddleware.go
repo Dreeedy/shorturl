@@ -2,6 +2,7 @@ package gzip
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -37,11 +38,17 @@ func (c *compressWriter) Header() http.Header {
 }
 
 func (c *compressWriter) Write(p []byte) (int, error) {
-	return c.zw.Write(p)
+	size, err := c.zw.Write(p)
+	if err != nil {
+		return size, fmt.Errorf("gzip.Writer.Write: %w", err)
+	}
+
+	return size, nil
 }
 
 func (c *compressWriter) WriteHeader(statusCode int) {
-	if statusCode < 300 {
+	maxStatusCode := 300
+	if statusCode < maxStatusCode {
 		c.w.Header().Set("Content-Encoding", "gzip")
 	}
 	c.w.WriteHeader(statusCode)
@@ -49,7 +56,12 @@ func (c *compressWriter) WriteHeader(statusCode int) {
 
 // Close closes the gzip.Writer and flushes all data from the buffer.
 func (c *compressWriter) Close() error {
-	return c.zw.Close()
+	err := c.zw.Close()
+	if err != nil {
+		return fmt.Errorf("gzip.Writer.Close: %w", err)
+	}
+
+	return nil
 }
 
 // allows the server to transparently decompress the data received from the client.
