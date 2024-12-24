@@ -105,7 +105,10 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 
 		acceptEncoding := r.Header.Get("Accept-Encoding")
 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		if supportsGzip {
+		contentType := r.Header.Get("Content-Type")
+		isCompressible := contentType == "application/json" || contentType == "text/html"
+
+		if supportsGzip && isCompressible {
 			cw := newCompressWriter(w)
 			ow = cw
 			defer func() {

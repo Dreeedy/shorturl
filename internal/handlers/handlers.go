@@ -17,8 +17,9 @@ import (
 )
 
 type Handler interface {
-	ShortenedURL(res http.ResponseWriter, req *http.Request)
-	OriginalURL(res http.ResponseWriter, req *http.Request)
+	ShortenedURL(w http.ResponseWriter, req *http.Request)
+	OriginalURL(w http.ResponseWriter, req *http.Request)
+	Shorten(w http.ResponseWriter, req *http.Request)
 	generateShortenedURL(originalURL string) (string, error)
 	generateRandomHash() string
 }
@@ -45,42 +46,42 @@ type ShortenAPIRs struct {
 
 const messageInternalServerEroror string = "Internal Server Error"
 
-func (ref *handlerHTTP) ShortenedURL(res http.ResponseWriter, req *http.Request) {
+func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(res, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
 	}
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		http.Error(res, "Unable to read request body", http.StatusBadRequest)
+		http.Error(w, "Unable to read request body", http.StatusBadRequest)
 		return
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
 			log.Printf("Unable to close request body: %v", err)
-			http.Error(res, messageInternalServerEroror, http.StatusInternalServerError)
+			http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
 		}
 	}()
 
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {
-		http.Error(res, "URL is empty", http.StatusBadRequest)
+		http.Error(w, "URL is empty", http.StatusBadRequest)
 		return
 	}
 
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
 		log.Printf("Internal Server Error: %v", err)
-		http.Error(res, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
 		return
 	}
 
-	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
-	if _, err := res.Write([]byte(shortenedURL)); err != nil {
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
+	if _, err := w.Write([]byte(shortenedURL)); err != nil {
 		log.Printf("Unable to write response: %v", err)
-		http.Error(res, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
 	}
 }
 
@@ -171,9 +172,9 @@ func (ref *handlerHTTP) generateRandomHash() string {
 	return hex.EncodeToString(b)
 }
 
-func (ref *handlerHTTP) OriginalURL(res http.ResponseWriter, req *http.Request) {
+func (ref *handlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		http.Error(res, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
 	}
 
@@ -182,10 +183,10 @@ func (ref *handlerHTTP) OriginalURL(res http.ResponseWriter, req *http.Request) 
 	originalURL, found := ref.stg.GetURL(id)
 
 	if !found {
-		http.Error(res, "URL not found", http.StatusBadRequest)
+		http.Error(w, "URL not found", http.StatusBadRequest)
 		return
 	}
 
-	res.Header().Set("Location", originalURL)
-	res.WriteHeader(http.StatusTemporaryRedirect)
+	w.Header().Set("Location", originalURL)
+	w.WriteHeader(http.StatusTemporaryRedirect)
 }

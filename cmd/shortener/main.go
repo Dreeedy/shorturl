@@ -25,8 +25,8 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
-	router.Use(newHTTPLogger.RqRsLogger)
 	router.Use(newGzipMiddleware.CompressionHandler)
+	router.Use(newHTTPLogger.RqRsLogger)
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
