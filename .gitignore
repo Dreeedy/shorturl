@@ -24,3 +24,4 @@ vendor/
 
 golangci-lint
 golangci-lint/
+cmd/shortener/default_filestorage.json
