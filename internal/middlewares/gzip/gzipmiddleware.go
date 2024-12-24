@@ -71,14 +71,14 @@ type compressReader struct {
 }
 
 func newCompressReader(r io.ReadCloser) (*compressReader, error) {
-	zr, err := gzip.NewReader(r)
+	reader, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gzip.NewReader: %w", err)
 	}
 
 	return &compressReader{
 		r:  r,
-		zr: zr,
+		zr: reader,
 	}, nil
 }
 
@@ -87,10 +87,13 @@ func (c compressReader) Read(p []byte) (n int, err error) {
 }
 
 func (c *compressReader) Close() error {
-	if err := c.r.Close(); err != nil {
-		return err
+	errIo := c.r.Close()
+	errGzip := c.zr.Close()
+	if errIo != nil || errGzip != nil {
+		return fmt.Errorf("io.ReadCloser.Close or gzip.Reader.Close: %w %w", errIo, errGzip)
 	}
-	return c.zr.Close()
+
+	return nil
 }
 
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
