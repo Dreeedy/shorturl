@@ -82,13 +82,10 @@ func (c compressReader) Read(p []byte) (n int, err error) {
 }
 
 func (c *compressReader) Close() error {
-	errIo := c.r.Close()
-	errGzip := c.zr.Close()
-	if errIo != nil || errGzip != nil {
-		return fmt.Errorf("io.ReadCloser.Close or gzip.Reader.Close: %w %w", errIo, errGzip)
+	if err := c.r.Close(); err != nil {
+		return err
 	}
-
-	return nil
+	return c.zr.Close()
 }
 
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
