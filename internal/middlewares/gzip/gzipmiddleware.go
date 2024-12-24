@@ -2,7 +2,6 @@ package gzip
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -20,6 +19,7 @@ func NewGzipMiddleware() *gzipMiddleware {
 	return &gzipMiddleware{}
 }
 
+// allows the server to transparently compress the transmitted data and set the correct HTTP headers.
 type compressWriter struct {
 	w  http.ResponseWriter
 	zw *gzip.Writer
@@ -37,29 +37,22 @@ func (c *compressWriter) Header() http.Header {
 }
 
 func (c *compressWriter) Write(p []byte) (int, error) {
-	n, err := c.zw.Write(p)
-	if err != nil {
-		return n, fmt.Errorf("gzip.Writer.Write: %w", err)
-	}
-	return n, nil
+	return c.zw.Write(p)
 }
 
 func (c *compressWriter) WriteHeader(statusCode int) {
-	maxStatusCode := 300
-	if statusCode < maxStatusCode {
+	if statusCode < 300 {
 		c.w.Header().Set("Content-Encoding", "gzip")
 	}
 	c.w.WriteHeader(statusCode)
 }
 
+// Close closes the gzip.Writer and flushes all data from the buffer.
 func (c *compressWriter) Close() error {
-	err := c.zw.Close()
-	if err != nil {
-		return fmt.Errorf("gzip.Writer.Close: %w", err)
-	}
-	return nil
+	return c.zw.Close()
 }
 
+// allows the server to transparently decompress the data received from the client.
 type compressReader struct {
 	r  io.ReadCloser
 	zr *gzip.Reader
@@ -68,7 +61,7 @@ type compressReader struct {
 func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	zr, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("gzip.NewReader: %w", err)
+		return nil, err
 	}
 
 	return &compressReader{
@@ -77,60 +70,52 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 	}, nil
 }
 
-func (c *compressReader) Read(p []byte) (n int, err error) {
-	n, err = c.zr.Read(p)
-	if err != nil {
-		return n, fmt.Errorf("gzip.Reader.Read: %w", err)
-	}
-	return n, nil
+func (c compressReader) Read(p []byte) (n int, err error) {
+	return c.zr.Read(p)
 }
 
 func (c *compressReader) Close() error {
 	if err := c.r.Close(); err != nil {
-		return fmt.Errorf("io.ReadCloser.Close: %w", err)
+		return err
 	}
-	if err := c.zr.Close(); err != nil {
-		return fmt.Errorf("gzip.Reader.Close: %w", err)
-	}
-	return nil
+	return c.zr.Close()
 }
 
+// CompressionHandler is a middleware function for handling data compression and decompression.
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// by default, set the original http.ResponseWriter as the one that will be passed to the next function.
 		ow := w
 
+		// check if the client can receive compressed data from the server in gzip format.
 		acceptEncoding := r.Header.Get("Accept-Encoding")
 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		contentType := r.Header.Get("Content-Type")
-		isCompressible := contentType == "application/json" || contentType == "text/html"
-
-		if supportsGzip && isCompressible {
+		if supportsGzip {
+			// wrap the original http.ResponseWriter with a new one that supports compression.
 			cw := newCompressWriter(w)
+			// change the original http.ResponseWriter to the new one.
 			ow = cw
-			defer func() {
-				if err := cw.Close(); err != nil {
-					log.Printf("Error closing compressWriter: %v", err)
-				}
-			}()
+			// do not forget to send all compressed data to the client after the middleware is finished.
+			defer cw.Close()
 		}
 
+		// check if the client sent compressed data to the server in gzip format.
 		contentEncoding := r.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(contentEncoding, "gzip")
 		if sendsGzip {
+			// wrap the request body in an io.Reader that supports decompression.
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
 				log.Printf("Error creating compressReader: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+			// change the request body to the new one.
 			r.Body = cr
-			defer func() {
-				if err := cr.Close(); err != nil {
-					log.Printf("Error closing compressReader: %v", err)
-				}
-			}()
+			defer cr.Close()
 		}
 
+		// pass control to the handler.
 		next.ServeHTTP(ow, r)
 	})
 }
