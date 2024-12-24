@@ -7,8 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 type GzipMiddleware interface {
@@ -42,9 +40,9 @@ func (c *compressWriter) Header() http.Header {
 func (c *compressWriter) Write(p []byte) (int, error) {
 	size, err := c.zw.Write(p)
 	if err != nil {
-		return size, errors.Wrap(err, "gzip.Writer.Write")
+		log.Printf("Original error: %v", err)
+		return size, fmt.Errorf("gzip.Writer.Write: %w", err)
 	}
-
 	return size, err
 }
 
