@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -108,7 +109,7 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 			ow = cw
 			defer func() {
 				if err := cw.Close(); err != nil {
-					fmt.Printf("Error closing compressWriter: %v", err)
+					log.Printf("Error closing compressWriter: %v", err)
 				}
 			}()
 		}
@@ -118,14 +119,14 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 		if sendsGzip {
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
+				log.Printf("Error creating compressReader: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Printf("Error creating compressReader: %v", err)
 				return
 			}
 			r.Body = cr
 			defer func() {
 				if err := cr.Close(); err != nil {
-					fmt.Printf("Error closing compressReader: %v", err)
+					log.Printf("Error closing compressReader: %v", err)
 				}
 			}()
 		}

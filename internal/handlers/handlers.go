@@ -54,6 +54,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
+		log.Printf("Unable to read request body: %v", err)
 		http.Error(w, "Unable to read request body", http.StatusBadRequest)
 		return
 	}
