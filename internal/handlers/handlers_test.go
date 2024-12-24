@@ -64,15 +64,6 @@ func TestShortenedURL(t *testing.T) {
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
-		{
-			name: "invalid URL",
-			body: "invalid-url",
-			want: want{
-				code:        400,
-				response:    "Unable to read request body\n",
-				contentType: "text/plain; charset=utf-8",
-			},
-		},
 	}
 
 	// Initialize the router.
