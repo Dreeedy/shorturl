@@ -59,9 +59,9 @@ func (r *responseRecorder) WriteHeader(code int) {
 func (r *responseRecorder) Write(bytes []byte) (int, error) {
 	size, err := r.ResponseWriter.Write(bytes)
 	if err != nil {
-		return size, fmt.Errorf("failed to write response: %w", err)
+		return 0, fmt.Errorf("failed to write response: %w", err)
 	}
 	r.size += size
 
-	return size, err
+	return size, nil
 }

@@ -3,12 +3,17 @@ package filestorage
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"sync"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+)
+
+const (
+	filePermission = 0o600
 )
 
 type Storage interface {
@@ -31,7 +36,6 @@ type URLData struct {
 }
 
 func NewFilestorage(newConfig config.Config) *filestorage {
-
 	newFilestorage := filestorage{
 		urlMap:    make(map[string]URLData),
 		urlMapMux: &sync.Mutex{},
@@ -87,31 +91,34 @@ func (ref *filestorage) LoadFromFile() error {
 		log.Printf("File does not exist, creating: %s", filePath)
 		file, err := os.Create(filePath)
 		if err != nil {
-			log.Printf("err: %s", err)
-			return err
+			return fmt.Errorf("os.Create: %w", err)
 		}
-		file.Close()
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("file.Close: %w", err)
+		}
 		return nil // File created, nothing to load.
 	} else if err != nil {
-		log.Printf("err: %s", err)
-		return err
+		return fmt.Errorf("os.Stat: %w", err)
 	}
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("LoadFromFile err: %s", err)
-		return err
+		return fmt.Errorf("os.Open: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	decoder := json.NewDecoder(file)
 	for {
 		var data URLData
 		if err := decoder.Decode(&data); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
-			return err
+			return fmt.Errorf("json.Decoder.Decode: %w", err)
 		}
 		ref.urlMap[data.ShortURL] = data
 	}
@@ -120,17 +127,19 @@ func (ref *filestorage) LoadFromFile() error {
 }
 
 func (ref *filestorage) AppendToFile(data URLData) error {
-	file, err := os.OpenFile(ref.cfg.GetConfig().FileStoragePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	file, err := os.OpenFile(ref.cfg.GetConfig().FileStoragePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermission)
 	if err != nil {
-		log.Printf("err: %s", err)
-		return err
+		return fmt.Errorf("os.OpenFile: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	encoder := json.NewEncoder(file)
 	if err := encoder.Encode(data); err != nil {
-		log.Printf("err: %s", err)
-		return err
+		return fmt.Errorf("json.Encoder.Encode: %w", err)
 	}
 
 	return nil
