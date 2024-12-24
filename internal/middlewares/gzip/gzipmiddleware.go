@@ -40,7 +40,7 @@ func (c *compressWriter) Header() http.Header {
 func (c *compressWriter) Write(p []byte) (int, error) {
 	size, err := c.zw.Write(p)
 	if err != nil {
-		return size, fmt.Errorf("gzip.Writer.Write: %w", err)
+		return 0, fmt.Errorf("gzip.Writer.Write: %w", err)
 	}
 
 	return size, nil
