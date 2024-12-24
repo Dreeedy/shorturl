@@ -49,6 +49,7 @@ func NewFilestorage(newConfig config.Config) *filestorage {
 	return &newFilestorage
 }
 
+// SetURL sets a new URL in the storage.
 func (ref *filestorage) SetURL(uuid, shortURL, originalURL string) error {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
@@ -70,6 +71,7 @@ func (ref *filestorage) SetURL(uuid, shortURL, originalURL string) error {
 	})
 }
 
+// GetURL retrieves the original URL for a given short URL.
 func (ref *filestorage) GetURL(shortURL string) (string, bool) {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
@@ -81,6 +83,7 @@ func (ref *filestorage) GetURL(shortURL string) (string, bool) {
 	return data.OriginalURL, true
 }
 
+// LoadFromFile loads URL data from the file.
 func (ref *filestorage) LoadFromFile() error {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
@@ -126,6 +129,7 @@ func (ref *filestorage) LoadFromFile() error {
 	return nil
 }
 
+// AppendToFile appends URL data to the file.
 func (ref *filestorage) AppendToFile(data URLData) error {
 	file, err := os.OpenFile(ref.cfg.GetConfig().FileStoragePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermission)
 	if err != nil {
