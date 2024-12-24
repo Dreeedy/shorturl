@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
 )
 
 type GzipMiddleware interface {
@@ -15,13 +13,10 @@ type GzipMiddleware interface {
 }
 
 type gzipMiddleware struct {
-	log zaplogger.Logger
 }
 
-func NewGzipMiddleware(newLogger zaplogger.Logger) *gzipMiddleware {
-	return &gzipMiddleware{
-		log: newLogger,
-	}
+func NewGzipMiddleware() *gzipMiddleware {
+	return &gzipMiddleware{}
 }
 
 type compressWriter struct {
@@ -113,7 +108,7 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 			ow = cw
 			defer func() {
 				if err := cw.Close(); err != nil {
-					ref.log.Info(fmt.Sprintf("Error closing compressWriter: %v", err))
+					fmt.Printf("Error closing compressWriter: %v", err)
 				}
 			}()
 		}
@@ -124,13 +119,13 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				ref.log.Info(fmt.Sprintf("Error creating compressReader: %v", err))
+				fmt.Printf("Error creating compressReader: %v", err)
 				return
 			}
 			r.Body = cr
 			defer func() {
 				if err := cr.Close(); err != nil {
-					ref.log.Info(fmt.Sprintf("Error closing compressReader: %v", err))
+					fmt.Printf("Error closing compressReader: %v", err)
 				}
 			}()
 		}

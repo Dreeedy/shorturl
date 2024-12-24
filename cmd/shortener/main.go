@@ -21,7 +21,7 @@ func main() {
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newFilestorage)
 	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
 	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
-	newGzipMiddleware := gzip.NewGzipMiddleware(newZapLogger)
+	newGzipMiddleware := gzip.NewGzipMiddleware()
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
