@@ -24,7 +24,6 @@ func NewGzipMiddleware(newLogger zaplogger.Logger) *gzipMiddleware {
 	}
 }
 
-// allows the server to transparently compress the transmitted data and set the correct HTTP headers.
 type compressWriter struct {
 	w  http.ResponseWriter
 	zw *gzip.Writer
@@ -57,7 +56,6 @@ func (c *compressWriter) WriteHeader(statusCode int) {
 	c.w.WriteHeader(statusCode)
 }
 
-// Close closes the gzip.Writer and flushes all data from the buffer.
 func (c *compressWriter) Close() error {
 	err := c.zw.Close()
 	if err != nil {
@@ -66,7 +64,6 @@ func (c *compressWriter) Close() error {
 	return nil
 }
 
-// allows the server to transparently decompress the data received from the client.
 type compressReader struct {
 	r  io.ReadCloser
 	zr *gzip.Reader
@@ -102,21 +99,15 @@ func (c *compressReader) Close() error {
 	return nil
 }
 
-// CompressionHandler is a middleware function for handling data compression and decompression.
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// by default, set the original http.ResponseWriter as the one that will be passed to the next function.
 		ow := w
 
-		// check if the client can receive compressed data from the server in gzip format.
 		acceptEncoding := r.Header.Get("Accept-Encoding")
 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
 		if supportsGzip {
-			// wrap the original http.ResponseWriter with a new one that supports compression.
 			cw := newCompressWriter(w)
-			// change the original http.ResponseWriter to the new one.
 			ow = cw
-			// do not forget to send all compressed data to the client after the middleware is finished.
 			defer func() {
 				if err := cw.Close(); err != nil {
 					ref.log.Info(fmt.Sprintf("Error closing compressWriter: %v", err))
@@ -124,18 +115,15 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 			}()
 		}
 
-		// check if the client sent compressed data to the server in gzip format.
 		contentEncoding := r.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(contentEncoding, "gzip")
 		if sendsGzip {
-			// wrap the request body in an io.Reader that supports decompression.
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				ref.log.Info(fmt.Sprintf("Error creating compressReader: %v", err))
 				return
 			}
-			// change the request body to the new one.
 			r.Body = cr
 			defer func() {
 				if err := cr.Close(); err != nil {
@@ -144,7 +132,6 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 			}()
 		}
 
-		// pass control to the handler.
 		next.ServeHTTP(ow, r)
 	})
 }

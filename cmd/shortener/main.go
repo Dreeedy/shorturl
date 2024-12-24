@@ -24,9 +24,9 @@ func main() {
 	newGzipMiddleware := gzip.NewGzipMiddleware(newZapLogger)
 
 	router := chi.NewRouter()
-	router.Use(middleware.Logger) // Use the built-in logger middleware from chi.
-	router.Use(newGzipMiddleware.CompressionHandler)
+	router.Use(middleware.Logger)
 	router.Use(newHTTPLogger.RqRsLogger)
+	router.Use(newGzipMiddleware.CompressionHandler)
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
