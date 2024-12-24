@@ -51,12 +51,7 @@ func (c *compressWriter) WriteHeader(statusCode int) {
 
 // Close closes the gzip.Writer and flushes all data from the buffer.
 func (c *compressWriter) Close() error {
-	err := c.zw.Close()
-	if err != nil {
-		return fmt.Errorf("gzip.Writer.Close: %w", err)
-	}
-
-	return nil
+	return c.zw.Close()
 }
 
 // allows the server to transparently decompress the data received from the client.
