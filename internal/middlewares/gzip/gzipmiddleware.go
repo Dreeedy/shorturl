@@ -81,41 +81,42 @@ func (c *compressReader) Close() error {
 	return c.zr.Close()
 }
 
-// CompressionHandler is a middleware function for handling data compression and decompression.
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// by default, set the original http.ResponseWriter as the one that will be passed to the next function.
 		ow := w
 
-		// check if the client can receive compressed data from the server in gzip format.
 		acceptEncoding := r.Header.Get("Accept-Encoding")
 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		if supportsGzip {
-			// wrap the original http.ResponseWriter with a new one that supports compression.
+		contentType := r.Header.Get("Content-Type")
+		isCompressible := contentType == "application/json" || contentType == "text/html"
+
+		if supportsGzip && isCompressible {
 			cw := newCompressWriter(w)
-			// change the original http.ResponseWriter to the new one.
 			ow = cw
-			// do not forget to send all compressed data to the client after the middleware is finished.
-			defer cw.Close()
+			defer func() {
+				if err := cw.Close(); err != nil {
+					log.Printf("Error closing compressWriter: %v", err)
+				}
+			}()
 		}
 
-		// check if the client sent compressed data to the server in gzip format.
 		contentEncoding := r.Header.Get("Content-Encoding")
 		sendsGzip := strings.Contains(contentEncoding, "gzip")
 		if sendsGzip {
-			// wrap the request body in an io.Reader that supports decompression.
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
 				log.Printf("Error creating compressReader: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			// change the request body to the new one.
 			r.Body = cr
-			defer cr.Close()
+			defer func() {
+				if err := cr.Close(); err != nil {
+					log.Printf("Error closing compressReader: %v", err)
+				}
+			}()
 		}
 
-		// pass control to the handler.
 		next.ServeHTTP(ow, r)
 	})
 }
