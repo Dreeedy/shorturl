@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type GzipMiddleware interface {
@@ -77,10 +79,16 @@ func (c compressReader) Read(p []byte) (n int, err error) {
 }
 
 func (c *compressReader) Close() error {
-	if err := c.r.Close(); err != nil {
-		return err
+	errIo := c.r.Close()
+	if errIo != nil {
+		return errors.Wrap(errIo, "io.ReadCloser.Close")
 	}
-	return c.zr.Close()
+	errGzip := c.zr.Close()
+	if errGzip != nil {
+		return errors.Wrap(errGzip, "gzip.Reader.Close")
+	}
+
+	return nil
 }
 
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {

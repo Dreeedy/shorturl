@@ -9,6 +9,8 @@ require (
 	go.uber.org/zap v1.27.0
 )
 
+require github.com/pkg/errors v0.9.1
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0
