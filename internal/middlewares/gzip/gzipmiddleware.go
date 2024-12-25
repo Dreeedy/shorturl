@@ -40,7 +40,12 @@ func (c *compressWriter) Header() http.Header {
 }
 
 func (c *compressWriter) Write(p []byte) (int, error) {
-	return c.zw.Write(p)
+	size, err := c.zw.Write(p)
+	if err != nil {
+		return size, fmt.Errorf("gzip.Writer.Write: %w", err)
+	}
+
+	return size, nil
 }
 
 func (c *compressWriter) WriteHeader(statusCode int) {
@@ -53,7 +58,12 @@ func (c *compressWriter) WriteHeader(statusCode int) {
 
 // Close closes the gzip.Writer and flushes all data from the buffer.
 func (c *compressWriter) Close() error {
-	return c.zw.Close()
+	err := c.zw.Close()
+	if err != nil {
+		return fmt.Errorf("gzip.Writer.Close: %w", err)
+	}
+
+	return nil
 }
 
 // allows the server to transparently decompress the data received from the client.
@@ -90,11 +100,11 @@ func (c compressReader) Read(p []byte) (n int, err error) {
 func (c *compressReader) Close() error {
 	errIo := c.r.Close()
 	if errIo != nil {
-		return errors.Wrap(errIo, "io.ReadCloser.Close")
+		return fmt.Errorf("io.ReadCloser.Close: %w", errIo)
 	}
 	errGzip := c.zr.Close()
 	if errGzip != nil {
-		return errors.Wrap(errGzip, "gzip.Reader.Close")
+		return fmt.Errorf("gzip.Reader.Close: %w", errGzip)
 	}
 
 	return nil
