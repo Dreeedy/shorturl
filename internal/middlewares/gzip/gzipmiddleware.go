@@ -80,7 +80,7 @@ func (c compressReader) Read(p []byte) (n int, err error) {
 		return size, errors.Wrap(err, "gzip.Reader.Read")
 	}
 
-	return size, nil
+	return size, err
 }
 
 func (c *compressReader) Close() error {
