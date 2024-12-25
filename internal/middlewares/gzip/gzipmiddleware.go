@@ -75,7 +75,12 @@ func newCompressReader(r io.ReadCloser) (*compressReader, error) {
 }
 
 func (c compressReader) Read(p []byte) (n int, err error) {
-	return c.zr.Read(p)
+	size, err := c.zr.Read(p)
+	if err != nil {
+		return size, errors.Wrap(err, "gzip.Reader.Read")
+	}
+
+	return size, nil
 }
 
 func (c *compressReader) Close() error {
