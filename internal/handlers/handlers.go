@@ -44,8 +44,6 @@ type ShortenAPIRs struct {
 	Result string `json:"result"`
 }
 
-const messageInternalServerEroror string = "Internal Server Error"
-
 func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
@@ -61,7 +59,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if err := req.Body.Close(); err != nil {
 			log.Printf("Unable to close request body: %v", err)
-			http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
@@ -74,7 +72,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
 		log.Printf("Internal Server Error: %v", err)
-		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -82,7 +80,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write([]byte(shortenedURL)); err != nil {
 		log.Printf("Unable to write response: %v", err)
-		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
@@ -101,7 +99,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if err := req.Body.Close(); err != nil {
 			log.Printf("Unable to close request body: %v", err)
-			http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
@@ -114,7 +112,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
 		log.Printf("Internal Server Error: %v", err)
-		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -124,7 +122,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 
 	resp, err := json.Marshal(shortenAPIRs)
 	if err != nil {
-		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -132,7 +130,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
 		log.Printf("Unable to write response: %v", err)
-		http.Error(w, messageInternalServerEroror, http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 

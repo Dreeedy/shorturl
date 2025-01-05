@@ -41,14 +41,6 @@ func NewConfig() Config {
 		config.FileStoragePath = fileStoragePath
 	}
 
-	// currentDir, err := os.Getwd()
-	// if err != nil {
-	// 	fmt.Println("Error getting current directory:", err)
-	// 	return config
-	// }
-
-	// config.FileStoragePath = filepath.Join(currentDir, config.FileStoragePath)
-
 	return config
 }
 
