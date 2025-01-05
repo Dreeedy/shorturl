@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,14 +18,6 @@ import (
 )
 
 func TestShortenedURL(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockConfig := config.NewMockConfig(ctrl)
-	mockStorage := filestorage.NewMockStorage(ctrl)
-
-	handler := NewhandlerHTTP(mockConfig, mockStorage)
-
 	type want struct {
 		code        int
 		response    string
@@ -66,14 +57,21 @@ func TestShortenedURL(t *testing.T) {
 		},
 	}
 
-	// Initialize the router.
-	r := chi.NewRouter()
-	r.Post("/", handler.ShortenedURL)
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockConfig := config.NewMockConfig(ctrl)
+			mockStorage := filestorage.NewMockStorage(ctrl)
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage)
+
 			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+
+			r := chi.NewRouter()
+			r.Post("/", handler.ShortenedURL)
 
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
@@ -84,13 +82,13 @@ func TestShortenedURL(t *testing.T) {
 			res := w.Result()
 			defer func() {
 				if err := res.Body.Close(); err != nil {
-					log.Printf("Error closing response body: %v", err)
+					t.Log("Error closing response body:", err)
 				}
 			}()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 
-			log.Printf("TestShortenedURL.resBody: %s", string(resBody))
+			t.Log("TestShortenedURL.resBody:", string(resBody))
 
 			assert.Equal(t, test.want.code, res.StatusCode)
 			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
@@ -106,14 +104,6 @@ func TestShortenedURL(t *testing.T) {
 }
 
 func TestOriginalURL(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockConfig := config.NewMockConfig(ctrl)
-	mockStorage := filestorage.NewMockStorage(ctrl)
-
-	handler := NewhandlerHTTP(mockConfig, mockStorage)
-
 	type want struct {
 		code        int
 		location    string
@@ -162,18 +152,25 @@ func TestOriginalURL(t *testing.T) {
 		},
 	}
 
-	// Initialize the router.
-	r := chi.NewRouter()
-	r.Get("/{id}", handler.OriginalURL)
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockConfig := config.NewMockConfig(ctrl)
+			mockStorage := filestorage.NewMockStorage(ctrl)
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage)
+
 			id := strings.TrimPrefix(test.path, "/")
 			if test.want.code == 307 {
 				mockStorage.EXPECT().GetURL(id).Return(test.want.location, true)
 			} else {
 				mockStorage.EXPECT().GetURL(id).Return("", false)
 			}
+
+			r := chi.NewRouter()
+			r.Get("/{id}", handler.OriginalURL)
 
 			request := httptest.NewRequest(http.MethodGet, test.path, http.NoBody)
 			w := httptest.NewRecorder()
@@ -184,7 +181,7 @@ func TestOriginalURL(t *testing.T) {
 			res := w.Result()
 			defer func() {
 				if err := res.Body.Close(); err != nil {
-					log.Printf("Error closing response body: %v", err)
+					t.Log("Error closing response body:", err)
 				}
 			}()
 
@@ -199,14 +196,6 @@ func TestOriginalURL(t *testing.T) {
 }
 
 func TestShorten(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockConfig := config.NewMockConfig(ctrl)
-	mockStorage := filestorage.NewMockStorage(ctrl)
-
-	handler := NewhandlerHTTP(mockConfig, mockStorage)
-
 	type want struct {
 		code        int
 		response    string
@@ -264,14 +253,21 @@ func TestShorten(t *testing.T) {
 		},
 	}
 
-	// Initialize the router.
-	r := chi.NewRouter()
-	r.Post("/shorten", handler.Shorten)
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockConfig := config.NewMockConfig(ctrl)
+			mockStorage := filestorage.NewMockStorage(ctrl)
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage)
+
 			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+
+			r := chi.NewRouter()
+			r.Post("/shorten", handler.Shorten)
 
 			request := httptest.NewRequest(http.MethodPost, "/shorten", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
@@ -282,13 +278,13 @@ func TestShorten(t *testing.T) {
 			res := w.Result()
 			defer func() {
 				if err := res.Body.Close(); err != nil {
-					log.Printf("Error closing response body: %v", err)
+					t.Log("Error closing response body:", err)
 				}
 			}()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 
-			log.Printf("TestShorten.resBody: %s", string(resBody))
+			t.Log("TestShorten.resBody:", string(resBody))
 
 			assert.Equal(t, test.want.code, res.StatusCode)
 			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
