@@ -7,17 +7,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type Logger interface {
-	Info(msg string, fields ...zap.Field)
-}
-
-type zapLogger struct {
-	config config.Config
-	logger *zap.Logger
-}
-
 // NewZapLogger Initialize initializes the logger singleton with the required logging level.
-func NewZapLogger(cfg config.Config) (Logger, error) {
+func NewZapLogger(cfg config.Config) (*zap.Logger, error) {
 	// convert the text logging level to zap.AtomicLevel.
 	lvl, err := zap.ParseAtomicLevel(cfg.GetConfig().FlagLogLevel)
 	if err != nil {
@@ -33,12 +24,5 @@ func NewZapLogger(cfg config.Config) (Logger, error) {
 		return nil, fmt.Errorf("failed to build logger: %w", err)
 	}
 
-	return &zapLogger{
-		config: cfg, logger: zl,
-	}, nil
-}
-
-// Info implementation of the Info method for ZapLogger.
-func (z *zapLogger) Info(msg string, fields ...zap.Field) {
-	z.logger.Info(msg, fields...)
+	return zl, nil
 }

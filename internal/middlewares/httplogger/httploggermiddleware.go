@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Dreeedy/shorturl/internal/config"
-	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
 	"go.uber.org/zap"
 )
 
@@ -16,10 +15,10 @@ type RqRsLogger interface {
 
 type httpLogger struct {
 	cfg config.Config
-	log zaplogger.Logger
+	log zap.Logger
 }
 
-func NewHTTPLogger(newConfig config.Config, newLogger zaplogger.Logger) *httpLogger {
+func NewHTTPLogger(newConfig config.Config, newLogger zap.Logger) *httpLogger {
 	return &httpLogger{
 		cfg: newConfig,
 		log: newLogger,
