@@ -9,7 +9,7 @@ import (
 	"github.com/Dreeedy/shorturl/internal/middlewares/gzip"
 	"github.com/Dreeedy/shorturl/internal/middlewares/httplogger"
 	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
-	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
+	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"go.uber.org/zap"
@@ -19,8 +19,9 @@ func main() {
 	newConfig := config.NewConfig()
 	httpConfig := newConfig.GetConfig()
 	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
-	newFilestorage := filestorage.NewFilestorage(newConfig, newZapLogger)
-	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newFilestorage, newZapLogger)
+	newStorageFactory := storages.NewStorageFactory(newConfig, newZapLogger)
+	newStorage, _ := newStorageFactory.CreateStorage(httpConfig.StorageType)
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger)
 	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
 

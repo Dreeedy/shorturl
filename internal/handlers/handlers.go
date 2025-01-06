@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
-	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
+	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -31,11 +31,11 @@ type Handler interface {
 
 type handlerHTTP struct {
 	cfg config.Config
-	stg filestorage.Storage
+	stg storages.Storage
 	log *zap.Logger
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage filestorage.Storage, newLogger *zap.Logger) *handlerHTTP {
+func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *handlerHTTP {
 	return &handlerHTTP{
 		cfg: newConfig,
 		stg: newStorage,
