@@ -43,7 +43,7 @@ func NewFilestorage(newConfig config.Config) *filestorage {
 	}
 
 	if err := newFilestorage.LoadFromFile(); err != nil {
-		log.Fatalf("Failed to load URLs from file: %v", err)
+		log.Printf("Failed to load URLs from file: %v", err)
 	}
 
 	return &newFilestorage
@@ -90,7 +90,6 @@ func (ref *filestorage) LoadFromFile() error {
 
 	filePath := ref.cfg.GetConfig().FileStoragePath
 
-	const filePermission = 0o600
 	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, filePermission)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
