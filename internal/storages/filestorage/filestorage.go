@@ -90,7 +90,8 @@ func (ref *filestorage) LoadFromFile() error {
 
 	filePath := ref.cfg.GetConfig().FileStoragePath
 
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0o600)
+	const filePermission = 0o600
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, filePermission)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)
 	}
