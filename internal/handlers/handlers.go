@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -14,6 +13,12 @@ import (
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+const (
+	errorKey           = "err"
+	unableToReadRqBody = "Unable to read request body"
 )
 
 type Handler interface {
@@ -27,12 +32,14 @@ type Handler interface {
 type handlerHTTP struct {
 	cfg config.Config
 	stg filestorage.Storage
+	log *zap.Logger
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage filestorage.Storage) *handlerHTTP {
+func NewhandlerHTTP(newConfig config.Config, newStorage filestorage.Storage, newLogger *zap.Logger) *handlerHTTP {
 	return &handlerHTTP{
 		cfg: newConfig,
 		stg: newStorage,
+		log: newLogger,
 	}
 }
 
@@ -52,13 +59,13 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		log.Printf("Unable to read request body: %v", err)
-		http.Error(w, "Unable to read request body", http.StatusBadRequest)
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
 		return
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			log.Printf("Unable to close request body: %v", err)
+			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
@@ -71,7 +78,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
-		log.Printf("Internal Server Error: %v", err)
+		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -79,7 +86,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write([]byte(shortenedURL)); err != nil {
-		log.Printf("Unable to write response: %v", err)
+		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -93,12 +100,13 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	var shortenAPIRq ShortenAPIRq
 
 	if err := json.NewDecoder(req.Body).Decode(&shortenAPIRq); err != nil {
-		http.Error(w, "Unable to read request body", http.StatusBadRequest)
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
 		return
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			log.Printf("Unable to close request body: %v", err)
+			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
@@ -111,7 +119,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
-		log.Printf("Internal Server Error: %v", err)
+		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -122,6 +130,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 
 	resp, err := json.Marshal(shortenAPIRs)
 	if err != nil {
+		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -129,7 +138,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
-		log.Printf("Unable to write response: %v", err)
+		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -166,7 +175,7 @@ func (ref *handlerHTTP) generateRandomHash() string {
 
 	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
-		log.Fatalf("Unable to generate random hash: %v", err)
+		ref.log.Fatal("Unable to generate random hash", zap.String(errorKey, err.Error()))
 	}
 	return hex.EncodeToString(b)
 }

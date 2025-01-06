@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"sync"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"go.uber.org/zap"
 )
 
 const (
 	filePermission = 0o600
+	errorKey       = "err"
 )
 
 type Storage interface {
@@ -27,6 +28,7 @@ type filestorage struct {
 	urlMap    map[string]URLData
 	urlMapMux *sync.Mutex
 	cfg       config.Config
+	log       *zap.Logger
 }
 
 type URLData struct {
@@ -35,15 +37,16 @@ type URLData struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func NewFilestorage(newConfig config.Config) *filestorage {
+func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *filestorage {
 	newFilestorage := filestorage{
 		urlMap:    make(map[string]URLData),
 		urlMapMux: &sync.Mutex{},
 		cfg:       newConfig,
+		log:       newLogger,
 	}
 
 	if err := newFilestorage.LoadFromFile(); err != nil {
-		log.Printf("Failed to load URLs from file: %v", err)
+		newLogger.Error("Failed to load URLs from file: %v", zap.String(errorKey, err.Error()))
 	}
 
 	return &newFilestorage
@@ -96,7 +99,7 @@ func (ref *filestorage) LoadFromFile() error {
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
+			ref.log.Error("Error closing file: %v", zap.String(errorKey, err.Error()))
 		}
 	}()
 
@@ -123,7 +126,7 @@ func (ref *filestorage) AppendToFile(data URLData) error {
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
+			ref.log.Error("Error closing file: %v", zap.String(errorKey, err.Error()))
 		}
 	}()
 

@@ -12,14 +12,15 @@ import (
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"go.uber.org/zap"
 )
 
 func main() {
 	newConfig := config.NewConfig()
 	httpConfig := newConfig.GetConfig()
-	newFilestorage := filestorage.NewFilestorage(newConfig)
-	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newFilestorage)
 	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
+	newFilestorage := filestorage.NewFilestorage(newConfig, newZapLogger)
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newFilestorage, newZapLogger)
 	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
 
@@ -32,8 +33,8 @@ func main() {
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
 
-	log.Printf("Running server on %s\n", httpConfig.RunAddr)
-	log.Printf("Base URL for shortened URLs: %s\n", httpConfig.BaseURL)
+	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
+	newZapLogger.Info("Base URL for shortened URLs: %s\n", zap.String("BaseURL", httpConfig.BaseURL))
 
 	err := http.ListenAndServe(httpConfig.RunAddr, router)
 	if err != nil {

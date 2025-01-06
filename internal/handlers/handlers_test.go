@@ -15,6 +15,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestShortenedURL(t *testing.T) {
@@ -65,7 +66,17 @@ func TestShortenedURL(t *testing.T) {
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
 
-			handler := NewhandlerHTTP(mockConfig, mockStorage)
+			logger, err := zap.NewProduction()
+			if err != nil {
+				t.Fatalf("Failed to initialize logger: %v", err)
+			}
+			defer func() {
+				if err := logger.Sync(); err != nil {
+					t.Fatalf("Failed to sync logger: %v", err)
+				}
+			}()
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
 			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
@@ -160,7 +171,17 @@ func TestOriginalURL(t *testing.T) {
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
 
-			handler := NewhandlerHTTP(mockConfig, mockStorage)
+			logger, err := zap.NewProduction()
+			if err != nil {
+				t.Fatalf("Failed to initialize logger: %v", err)
+			}
+			defer func() {
+				if err := logger.Sync(); err != nil {
+					t.Fatalf("Failed to sync logger: %v", err)
+				}
+			}()
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
 			id := strings.TrimPrefix(test.path, "/")
 			if test.want.code == 307 {
@@ -261,7 +282,17 @@ func TestShorten(t *testing.T) {
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
 
-			handler := NewhandlerHTTP(mockConfig, mockStorage)
+			logger, err := zap.NewProduction()
+			if err != nil {
+				t.Fatalf("Failed to initialize logger: %v", err)
+			}
+			defer func() {
+				if err := logger.Sync(); err != nil {
+					t.Fatalf("Failed to sync logger: %v", err)
+				}
+			}()
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
 			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
