@@ -89,24 +89,10 @@ func (ref *filestorage) LoadFromFile() error {
 	defer ref.urlMapMux.Unlock()
 
 	filePath := ref.cfg.GetConfig().FileStoragePath
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		log.Printf("File does not exist, creating: %s", filePath)
-		file, err := os.Create(filePath)
-		if err != nil {
-			return fmt.Errorf("os.Create: %w", err)
-		}
-		if err := file.Close(); err != nil {
-			return fmt.Errorf("file.Close: %w", err)
-		}
-		return nil // File created, nothing to load.
-	} else if err != nil {
-		return fmt.Errorf("os.Stat: %w", err)
-	}
 
-	file, err := os.Open(filePath)
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		return fmt.Errorf("os.Open: %w", err)
+		return fmt.Errorf("os.OpenFile: %w", err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {

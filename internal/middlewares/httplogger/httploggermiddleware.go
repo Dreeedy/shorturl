@@ -15,10 +15,10 @@ type RqRsLogger interface {
 
 type httpLogger struct {
 	cfg config.Config
-	log zap.Logger
+	log *zap.Logger
 }
 
-func NewHTTPLogger(newConfig config.Config, newLogger zap.Logger) *httpLogger {
+func NewHTTPLogger(newConfig config.Config, newLogger *zap.Logger) *httpLogger {
 	return &httpLogger{
 		cfg: newConfig,
 		log: newLogger,
