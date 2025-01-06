@@ -18,6 +18,16 @@ import (
 	"go.uber.org/zap"
 )
 
+var logger *zap.Logger
+
+func init() {
+	var err error
+	logger, err = zap.NewProduction()
+	if err != nil {
+		panic("Failed to initialize logger: " + err.Error())
+	}
+}
+
 func TestShortenedURL(t *testing.T) {
 	type want struct {
 		code        int
@@ -65,16 +75,6 @@ func TestShortenedURL(t *testing.T) {
 
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
-
-			logger, err := zap.NewProduction()
-			if err != nil {
-				t.Errorf("Failed to initialize logger: %v", err)
-			}
-			defer func() {
-				if err := logger.Sync(); err != nil {
-					t.Errorf("Failed to sync logger: %v", err)
-				}
-			}()
 
 			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
@@ -170,16 +170,6 @@ func TestOriginalURL(t *testing.T) {
 
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
-
-			logger, err := zap.NewProduction()
-			if err != nil {
-				t.Errorf("Failed to initialize logger: %v", err)
-			}
-			defer func() {
-				if err := logger.Sync(); err != nil {
-					t.Errorf("Failed to sync logger: %v", err)
-				}
-			}()
 
 			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
@@ -281,16 +271,6 @@ func TestShorten(t *testing.T) {
 
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
-
-			logger, err := zap.NewProduction()
-			if err != nil {
-				t.Errorf("Failed to initialize logger: %v", err)
-			}
-			defer func() {
-				if err := logger.Sync(); err != nil {
-					t.Errorf("Failed to sync logger: %v", err)
-				}
-			}()
 
 			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
