@@ -68,11 +68,11 @@ func TestShortenedURL(t *testing.T) {
 
 			logger, err := zap.NewProduction()
 			if err != nil {
-				t.Fatalf("Failed to initialize logger: %v", err)
+				t.Errorf("Failed to initialize logger: %v", err)
 			}
 			defer func() {
 				if err := logger.Sync(); err != nil {
-					t.Fatalf("Failed to sync logger: %v", err)
+					t.Errorf("Failed to sync logger: %v", err)
 				}
 			}()
 
@@ -173,11 +173,11 @@ func TestOriginalURL(t *testing.T) {
 
 			logger, err := zap.NewProduction()
 			if err != nil {
-				t.Fatalf("Failed to initialize logger: %v", err)
+				t.Errorf("Failed to initialize logger: %v", err)
 			}
 			defer func() {
 				if err := logger.Sync(); err != nil {
-					t.Fatalf("Failed to sync logger: %v", err)
+					t.Errorf("Failed to sync logger: %v", err)
 				}
 			}()
 
@@ -284,11 +284,11 @@ func TestShorten(t *testing.T) {
 
 			logger, err := zap.NewProduction()
 			if err != nil {
-				t.Fatalf("Failed to initialize logger: %v", err)
+				t.Errorf("Failed to initialize logger: %v", err)
 			}
 			defer func() {
 				if err := logger.Sync(); err != nil {
-					t.Fatalf("Failed to sync logger: %v", err)
+					t.Errorf("Failed to sync logger: %v", err)
 				}
 			}()
 
