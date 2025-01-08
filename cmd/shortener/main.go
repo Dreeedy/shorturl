@@ -18,9 +18,15 @@ import (
 func main() {
 	newConfig := config.NewConfig()
 	httpConfig := newConfig.GetConfig()
-	newZapLogger, _ := zaplogger.NewZapLogger(newConfig)
+	newZapLogger, zaploggerzErr := zaplogger.NewZapLogger(newConfig)
+	if zaploggerzErr != nil {
+		log.Fatal("zaplogger init failed:", zaploggerzErr)
+	}
 	newStorageFactory := storages.NewStorageFactory(newConfig, newZapLogger)
-	newStorage, _ := newStorageFactory.CreateStorage(httpConfig.StorageType)
+	newStorage, newStoragezErr := newStorageFactory.CreateStorage(httpConfig.StorageType)
+	if newStoragezErr != nil {
+		log.Fatal("newStorage init failed:", newStoragezErr)
+	}
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger)
 	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
