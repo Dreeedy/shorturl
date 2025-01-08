@@ -3,79 +3,147 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
-	"github.com/Dreeedy/shorturl/internal/storage"
+	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+const (
+	errorKey           = "err"
+	unableToReadRqBody = "Unable to read request body"
 )
 
 type Handler interface {
-	ShortenedURL(res http.ResponseWriter, req *http.Request)
-	OriginalURL(res http.ResponseWriter, req *http.Request)
+	ShortenedURL(w http.ResponseWriter, req *http.Request)
+	OriginalURL(w http.ResponseWriter, req *http.Request)
+	Shorten(w http.ResponseWriter, req *http.Request)
 	generateShortenedURL(originalURL string) (string, error)
 	generateRandomHash() string
 }
 
-type HTTPHandler struct {
-	Config  config.Config
-	Storage storage.Storage
+type handlerHTTP struct {
+	cfg config.Config
+	stg storages.Storage
+	log *zap.Logger
 }
 
-func NewHandler(cfg config.Config, stg storage.Storage) Handler {
-	handler := &HTTPHandler{
-		Config:  cfg,
-		Storage: stg,
+func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *handlerHTTP {
+	return &handlerHTTP{
+		cfg: newConfig,
+		stg: newStorage,
+		log: newLogger,
 	}
-
-	return handler
 }
 
-func (ref *HTTPHandler) ShortenedURL(res http.ResponseWriter, req *http.Request) {
+type ShortenAPIRq struct {
+	URL string `json:"url"`
+}
+
+type ShortenAPIRs struct {
+	Result string `json:"result"`
+}
+
+func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(res, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
 	}
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		http.Error(res, "Unable to read request body", http.StatusBadRequest)
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
 		return
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			log.Printf("Unable to close request body: %v", err)
-			http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {
-		http.Error(res, "URL is empty", http.StatusBadRequest)
+		http.Error(w, "URL is empty", http.StatusBadRequest)
 		return
 	}
 
 	shortenedURL, err := ref.generateShortenedURL(originalURL)
 	if err != nil {
-		log.Printf("Internal Server Error: %v", err)
-		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	res.Header().Set("Content-Type", "text/plain")
-	res.WriteHeader(http.StatusCreated)
-	if _, err := res.Write([]byte(shortenedURL)); err != nil {
-		log.Printf("Unable to write response: %v", err)
-		http.Error(res, "Internal Server Error", http.StatusInternalServerError)
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusCreated)
+	if _, err := w.Write([]byte(shortenedURL)); err != nil {
+		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
-// Function to generate an abbreviated URL.
-func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error) {
+func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		return
+	}
+
+	var shortenAPIRq ShortenAPIRq
+
+	if err := json.NewDecoder(req.Body).Decode(&shortenAPIRq); err != nil {
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+	}()
+
+	originalURL := strings.TrimSpace(shortenAPIRq.URL)
+	if originalURL == "" {
+		http.Error(w, "URL is empty", http.StatusBadRequest)
+		return
+	}
+
+	shortenedURL, err := ref.generateShortenedURL(originalURL)
+	if err != nil {
+		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	shortenAPIRs := ShortenAPIRs{
+		Result: shortenedURL,
+	}
+
+	resp, err := json.Marshal(shortenAPIRs)
+	if err != nil {
+		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if _, err := w.Write(resp); err != nil {
+		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts int = 10
 	var attempts = 0
 	var hash string
@@ -83,7 +151,7 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
 
-		if err := ref.Storage.SetURL(hash, originalURL); err == nil {
+		if err := ref.stg.SetURL(uuid.NewString(), hash, originalURL); err == nil {
 			break
 		}
 
@@ -94,7 +162,7 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 		return "", fmt.Errorf("failed to generate unique hash after %d attempts", attempts)
 	}
 
-	cfg := ref.Config.GetConfig()
+	cfg := ref.cfg.GetConfig()
 
 	parts := []string{cfg.BaseURL, "/", hash}
 	shortenedURL := strings.Join(parts, "")
@@ -102,33 +170,31 @@ func (ref *HTTPHandler) generateShortenedURL(originalURL string) (string, error)
 	return shortenedURL, nil
 }
 
-// Function for generating a random hash of fixed length.
-func (ref *HTTPHandler) generateRandomHash() string {
+func (ref *handlerHTTP) generateRandomHash() string {
 	const size int = 4
 
-	b := make([]byte, size) // 8 hex characters.
+	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
-		log.Fatalf("Unable to generate random hash: %v", err)
+		ref.log.Fatal("Unable to generate random hash", zap.String(errorKey, err.Error()))
 	}
 	return hex.EncodeToString(b)
 }
 
-func (ref *HTTPHandler) OriginalURL(res http.ResponseWriter, req *http.Request) {
+func (ref *handlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		http.Error(res, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
 	}
 
 	id := chi.URLParam(req, "id")
 
-	originalURL, found := ref.Storage.GetURL(id)
+	originalURL, found := ref.stg.GetURL(id)
 
 	if !found {
-		http.Error(res, "URL not found", http.StatusBadRequest)
-		return // Exit after handling this error.
+		http.Error(w, "URL not found", http.StatusBadRequest)
+		return
 	}
 
-	// Set the Location header and send a redirect response.
-	res.Header().Set("Location", originalURL)
-	res.WriteHeader(http.StatusTemporaryRedirect)
+	w.Header().Set("Location", originalURL)
+	w.WriteHeader(http.StatusTemporaryRedirect)
 }
