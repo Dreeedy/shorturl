@@ -39,6 +39,7 @@ func main() {
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
+	router.Get("/ping", newHandlerHTTP.Ping)
 
 	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
 	newZapLogger.Info("Base URL for shortened URLs: %s\n", zap.String("BaseURL", httpConfig.BaseURL))
