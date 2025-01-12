@@ -23,22 +23,14 @@ const (
 	unableToReadRqBody = "Unable to read request body"
 )
 
-type Handler interface {
-	ShortenedURL(w http.ResponseWriter, req *http.Request)
-	OriginalURL(w http.ResponseWriter, req *http.Request)
-	Shorten(w http.ResponseWriter, req *http.Request)
-	generateShortenedURL(originalURL string) (string, error)
-	generateRandomHash() string
-}
-
-type handlerHTTP struct {
+type HandlerHTTP struct {
 	cfg config.Config
 	stg storages.Storage
 	log *zap.Logger
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *handlerHTTP {
-	return &handlerHTTP{
+func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *HandlerHTTP {
+	return &HandlerHTTP{
 		cfg: newConfig,
 		stg: newStorage,
 		log: newLogger,
@@ -53,7 +45,7 @@ type ShortenAPIRs struct {
 	Result string `json:"result"`
 }
 
-func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
+func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
@@ -93,7 +85,7 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
+func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
@@ -145,7 +137,7 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error) {
+func (ref *HandlerHTTP) generateShortenedURL(originalURL string) (string, error) {
 	const maxAttempts int = 10
 	var attempts = 0
 	var hash string
@@ -172,7 +164,7 @@ func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error)
 	return shortenedURL, nil
 }
 
-func (ref *handlerHTTP) generateRandomHash() string {
+func (ref *HandlerHTTP) generateRandomHash() string {
 	const size int = 4
 
 	b := make([]byte, size)
@@ -182,7 +174,7 @@ func (ref *handlerHTTP) generateRandomHash() string {
 	return hex.EncodeToString(b)
 }
 
-func (ref *handlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
+func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
@@ -201,7 +193,7 @@ func (ref *handlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
-func (ref *handlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
+func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
 		return
