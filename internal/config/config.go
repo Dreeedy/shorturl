@@ -29,7 +29,7 @@ func NewConfig() Config {
 	flag.StringVar(&config.FileStoragePath, "f", "default_filestorage.json",
 		"path to the file where data in JSON format is saved")
 	flag.StringVar(&config.DBConnectionAdress, "d",
-		"user=postgres dbname=mydb sslmode=disable password=111 host=localhost port=5432",
+		"",
 		"string with the database connection address")
 	flag.Parse()
 
