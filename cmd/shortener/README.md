@@ -40,6 +40,7 @@ go get github.com/jmoiron/sqlx
 ### С флагами командной строки
 Запустите приложение с флагами командной строки:
 ./shortener -a :8888 -b http://localhost:8888
+go run main.go -d "user=postgres dbname=mydb sslmode=disable password=111 host=localhost port=5432"
 
 ### С переменными окружения и флагами командной строки
 Установите переменные окружения и запустите приложение с флагами командной строки (переменные окружения имеют приоритет):

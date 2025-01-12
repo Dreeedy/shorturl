@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Dreeedy/shorturl/cmd/shortener/db"
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/handlers"
 	"github.com/Dreeedy/shorturl/internal/middlewares/gzip"
@@ -60,13 +59,8 @@ func main() {
 }
 
 func initDB(cfg config.Config, log *zap.Logger) error {
-	sqlFile, err := db.GetInitScript()
-	if err != nil {
-		log.Error("Failed to get int script", zap.Error(err))
-		return err
-	}
-
 	// Parse the connection string
+	log.Info("DBConnectionAdress", zap.String("DBConnectionAdress", cfg.GetConfig().DBConnectionAdress))
 	connConfig, err := pgx.ParseConnectionString(cfg.GetConfig().DBConnectionAdress)
 	if err != nil {
 		log.Error("Failed to parse connection string", zap.Error(err))
@@ -89,7 +83,14 @@ func initDB(cfg config.Config, log *zap.Logger) error {
 
 	log.Info("Connection to remote database successfully established")
 
-	_, err = conn.Exec(sqlFile)
+	createTableQuery := `
+    CREATE TABLE IF NOT EXISTS url_mapping (
+        uuid UUID PRIMARY KEY,
+        short_url VARCHAR(255) NOT NULL,
+        original_url TEXT NOT NULL
+    );
+    `
+	_, err = conn.Exec(createTableQuery)
 	if err != nil {
 		log.Error("Failed Exec sql", zap.Error(err))
 		return err
