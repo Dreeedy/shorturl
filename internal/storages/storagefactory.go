@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
 	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
 	"go.uber.org/zap"
@@ -27,7 +28,7 @@ func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger) *StorageF
 	}
 }
 
-func (ref *StorageFactory) CreateStorage() (Storage, error) {
+func (ref *StorageFactory) CreateStorage() (Storage, string, error) {
 	cfg := ref.cfg.GetConfig()
 
 	storageType := cfg.StorageType
@@ -36,14 +37,16 @@ func (ref *StorageFactory) CreateStorage() (Storage, error) {
 		storageType = "db"
 	}
 
+	ref.log.Info("Selected storage type", zap.String("storageType", storageType))
+
 	switch storageType {
 	case "ram":
-		return ramstorage.NewRAMStorage(), nil
+		return ramstorage.NewRAMStorage(), storageType, nil
 	case "file":
-		return filestorage.NewFilestorage(ref.cfg, ref.log), nil
+		return filestorage.NewFilestorage(ref.cfg, ref.log), storageType, nil
 	case "db":
-		return filestorage.NewFilestorage(ref.cfg, ref.log), nil
+		return dbstorage.NewDBStorage(ref.cfg, ref.log), storageType, nil
 	default:
-		return nil, fmt.Errorf("unknown storage type: %s", storageType)
+		return nil, storageType, fmt.Errorf("unknown storage type: %s", storageType)
 	}
 }

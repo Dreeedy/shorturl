@@ -25,7 +25,7 @@ func main() {
 		log.Fatal("zaplogger init failed:", zaploggerzErr)
 	}
 	newStorageFactory := storages.NewStorageFactory(newConfig, newZapLogger)
-	newStorage, newStoragezErr := newStorageFactory.CreateStorage()
+	newStorage, storageType, newStoragezErr := newStorageFactory.CreateStorage()
 	if newStoragezErr != nil {
 		log.Fatal("newStorage init failed:", newStoragezErr)
 	}
@@ -43,9 +43,11 @@ func main() {
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
 	router.Get("/ping", newHandlerHTTP.Ping)
 
-	initDBErr := initDB(newConfig, newZapLogger)
-	if initDBErr != nil {
-		log.Fatal("initDB failed:", initDBErr)
+	if storageType == "db" {
+		initDBErr := initDB(newConfig, newZapLogger)
+		if initDBErr != nil {
+			log.Fatal("initDB failed:", initDBErr)
+		}
 	}
 
 	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
