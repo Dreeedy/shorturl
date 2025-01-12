@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
@@ -26,11 +27,21 @@ func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger) *StorageF
 	}
 }
 
-func (ref *StorageFactory) CreateStorage(storageType string) (Storage, error) {
+func (ref *StorageFactory) CreateStorage() (Storage, error) {
+	cfg := ref.cfg.GetConfig()
+
+	storageType := cfg.StorageType
+
+	if len(strings.TrimSpace(cfg.DBConnectionAdress)) > 0 {
+		storageType = "db"
+	}
+
 	switch storageType {
 	case "ram":
 		return ramstorage.NewRAMStorage(), nil
 	case "file":
+		return filestorage.NewFilestorage(ref.cfg, ref.log), nil
+	case "db":
 		return filestorage.NewFilestorage(ref.cfg, ref.log), nil
 	default:
 		return nil, fmt.Errorf("unknown storage type: %s", storageType)

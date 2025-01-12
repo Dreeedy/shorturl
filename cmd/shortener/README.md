@@ -45,6 +45,9 @@ go get github.com/jmoiron/sqlx
 Установите переменные окружения и запустите приложение с флагами командной строки (переменные окружения имеют приоритет):
 \$env\:SERVER_ADDRESS=":8081"; \$env\:BASE_URL="http://localhost:8081"; ./shortener -a :8888 -b http://localhost:8888
 
+Default local DBConnectionAdress:
+"user=postgres dbname=mydb sslmode=disable password=111 host=localhost port=5432"
+
 ## Работа с моками
 
 ### Пример создание мока
