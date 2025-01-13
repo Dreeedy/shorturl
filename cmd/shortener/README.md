@@ -15,7 +15,10 @@ go vet ./...
 go vet -structtag ./...
 
 gzip -c data.json > data.json.gz
+dre_go@izmailov-pc:~$ cd /mnt/f/shorturl_binary
+dre_go@izmailov-pc:/mnt/f/shorturl_binary$ gzip raw_batch_data.json
 -- Создает сжатый архив правильного формата. Далее заливаем в постман.
+
 ## Тестирование
 
 Для выполнения всех тестов в проекте используйте следующую команду:
