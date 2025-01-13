@@ -2,6 +2,7 @@ package dbstorage
 
 import (
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 )
@@ -19,14 +20,14 @@ func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) *DBStorage {
 }
 
 // SetURL saves a URL in the storage.
-func (ref *DBStorage) SetURL(uuid, shortURL, originalURL string) error {
-
+func (ref *DBStorage) SetURL(data common.SetURLData) error {
 	// Parse the connection string
 	connConfig, err := pgx.ParseConnectionString(ref.cfg.GetConfig().DBConnectionAdress)
 	if err != nil {
 		ref.log.Error("Failed to parse connection string", zap.Error(err))
 		return err
 	}
+
 	// Establish the connection
 	conn, err := pgx.Connect(connConfig)
 	if err != nil {
@@ -43,10 +44,32 @@ func (ref *DBStorage) SetURL(uuid, shortURL, originalURL string) error {
 
 	ref.log.Info("Connection to remote database successfully established")
 
+	// Begin a transaction
+	tx, err := conn.Begin()
+	if err != nil {
+		ref.log.Error("Failed to begin transaction", zap.Error(err))
+		return err
+	}
+	defer func() {
+		if tx != nil {
+			if err := tx.Rollback(); err != nil {
+				ref.log.Error("Failed to rollback transaction", zap.Error(err))
+			}
+		}
+	}()
+
 	query := `INSERT INTO url_mapping (uuid, short_url, original_url) VALUES ($1, $2, $3)`
-	_, errExec := conn.Exec(query, uuid, shortURL, originalURL)
-	if errExec != nil {
-		ref.log.Error("Failed to save URL", zap.Error(errExec))
+	for _, item := range data {
+		_, errExec := tx.Exec(query, item.UUID, item.ShortURL, item.OriginalURL)
+		if errExec != nil {
+			ref.log.Error("Failed to save URL", zap.Error(errExec))
+			return errExec
+		}
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		ref.log.Error("Failed to commit transaction", zap.Error(err))
 		return err
 	}
 

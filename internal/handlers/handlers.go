@@ -12,6 +12,7 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storages"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
@@ -159,7 +160,14 @@ func (ref *HandlerHTTP) generateShortenedURL(originalURL string) (string, error)
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
 
-		if err := ref.stg.SetURL(uuid.NewString(), hash, originalURL); err == nil {
+		var setURLData common.SetURLData
+		item := common.SetURLItem{
+			UUID:        uuid.NewString(),
+			ShortURL:    hash,
+			OriginalURL: originalURL,
+		}
+		setURLData = append(setURLData, item)
+		if err := ref.stg.SetURL(setURLData); err == nil {
 			break
 		}
 
@@ -194,9 +202,9 @@ func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	id := chi.URLParam(req, "id")
+	shortUrl := chi.URLParam(req, "id")
 
-	originalURL, found := ref.stg.GetURL(id)
+	originalURL, found := ref.stg.GetURL(shortUrl)
 
 	if !found {
 		http.Error(w, "URL not found", http.StatusBadRequest)
@@ -269,6 +277,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
+
 	var batchAPIRs BatchAPIRs
 
 	for _, item := range batchAPIRq {

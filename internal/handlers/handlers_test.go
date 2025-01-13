@@ -78,7 +78,7 @@ func TestShortenedURL(t *testing.T) {
 
 			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
-			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+			mockStorage.EXPECT().SetURL(gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
 
 			r := chi.NewRouter()
@@ -274,7 +274,7 @@ func TestShorten(t *testing.T) {
 
 			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
 
-			mockStorage.EXPECT().SetURL(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+			mockStorage.EXPECT().SetURL(gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
 
 			r := chi.NewRouter()
@@ -306,6 +306,104 @@ func TestShorten(t *testing.T) {
 				assert.True(t, strings.HasPrefix(shortenAPIRs.Result, "http://localhost:8080/"))
 				// Check the length of the hash.
 				assert.Equal(t, 8, len(strings.TrimPrefix(shortenAPIRs.Result, "http://localhost:8080/")))
+			} else {
+				assert.Equal(t, test.want.response, string(resBody))
+			}
+		})
+	}
+}
+
+func TestBatch(t *testing.T) {
+	type want struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name string
+		body string
+		want want
+	}{
+		{
+			name: "valid batch",
+			body: `[
+				{"correlation_id": "1", "original_url": "https://practicum.yandex.ru"},
+				{"correlation_id": "2", "original_url": "https://www.google.com/"}
+			]`,
+			want: want{
+				code:        201,
+				response:    `[{"correlation_id":"1","short_url":"http://localhost:8080/"},{"correlation_id":"2","short_url":"http://localhost:8080/"}]`, // The exact hash will be checked later.
+				contentType: "application/json",
+			},
+		},
+		{
+			name: "empty URL in batch",
+			body: `[
+				{"correlation_id": "1", "original_url": ""}
+			]`,
+			want: want{
+				code:        400,
+				response:    "URL is empty\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			name: "invalid JSON in batch",
+			body: `[
+				{"correlation_id": "1", "original_url": "https://practicum.yandex.ru"
+			]`, // Missing closing brace.
+			want: want{
+				code:        400,
+				response:    "Unable to read request body\n",
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockConfig := config.NewMockConfig(ctrl)
+			mockStorage := filestorage.NewMockStorage(ctrl)
+
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
+
+			mockStorage.EXPECT().SetURL(gomock.Any()).AnyTimes()
+			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+
+			r := chi.NewRouter()
+			r.Post("/batch", handler.Batch)
+
+			request := httptest.NewRequest(http.MethodPost, "/batch", bytes.NewBufferString(test.body))
+			w := httptest.NewRecorder()
+
+			// Use the router to serve the request.
+			r.ServeHTTP(w, request)
+
+			res := w.Result()
+			defer func() {
+				if err := res.Body.Close(); err != nil {
+					t.Log("Error closing response body:", err)
+				}
+			}()
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			t.Log("TestBatch.resBody:", string(resBody))
+
+			assert.Equal(t, test.want.code, res.StatusCode)
+			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
+			if test.want.code == 201 {
+				var batchAPIRs BatchAPIRs
+				err := json.Unmarshal(resBody, &batchAPIRs)
+				require.NoError(t, err)
+				for _, item := range batchAPIRs {
+					assert.True(t, strings.HasPrefix(item.ShortURL, "http://localhost:8080/"))
+					// Check the length of the hash.
+					assert.Equal(t, 8, len(strings.TrimPrefix(item.ShortURL, "http://localhost:8080/")))
+				}
 			} else {
 				assert.Equal(t, test.want.response, string(resBody))
 			}

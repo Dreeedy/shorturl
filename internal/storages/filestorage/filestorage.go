@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
 	"go.uber.org/zap"
 )
@@ -47,19 +48,25 @@ func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *Filestorage
 }
 
 // SetURL sets a new URL in the storage.
-func (ref *Filestorage) SetURL(uuid, shortURL, originalURL string) error {
+func (ref *Filestorage) SetURL(data common.SetURLData) error {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
-	if err := ref.ramStorage.SetURL(uuid, shortURL, originalURL); err != nil {
+	if err := ref.ramStorage.SetURL(data); err != nil {
 		return fmt.Errorf("failed to set URL in memory store: %w", err)
 	}
 
-	return ref.AppendToFile(URLData{
-		UUID:        uuid,
-		ShortURL:    shortURL,
-		OriginalURL: originalURL,
-	})
+	for _, item := range data {
+		if err := ref.AppendToFile(URLData{
+			UUID:        item.UUID,
+			ShortURL:    item.ShortURL,
+			OriginalURL: item.OriginalURL,
+		}); err != nil {
+			return fmt.Errorf("failed to append URL to file: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // GetURL retrieves the original URL for a given short URL.
@@ -96,7 +103,14 @@ func (ref *Filestorage) LoadFromFile() error {
 			}
 			return fmt.Errorf("json.Decoder.Decode: %w", err)
 		}
-		if err := ref.ramStorage.SetURL(data.UUID, data.ShortURL, data.OriginalURL); err != nil {
+		var setURLData common.SetURLData
+		item := common.SetURLItem{
+			UUID:        data.UUID,
+			ShortURL:    data.ShortURL,
+			OriginalURL: data.OriginalURL,
+		}
+		setURLData = append(setURLData, item)
+		if err := ref.ramStorage.SetURL(setURLData); err != nil {
 			return fmt.Errorf("failed to set URL in memory store: %w", err)
 		}
 	}

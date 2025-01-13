@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
 	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
@@ -12,7 +13,7 @@ import (
 )
 
 type Storage interface {
-	SetURL(uuid, shortURL, originalURL string) error
+	SetURL(data common.SetURLData) error
 	GetURL(shortURL string) (string, bool)
 }
 
