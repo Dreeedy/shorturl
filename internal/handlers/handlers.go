@@ -45,6 +45,20 @@ type ShortenAPIRs struct {
 	Result string `json:"result"`
 }
 
+type BatchAPIRq []OriginalURLItem
+
+type OriginalURLItem struct {
+	CorrelationId string `json:"correlation_id"`
+	OriginalURL   string `json:"original_url"`
+}
+
+type BatchAPIRs []ShortURLItem
+
+type ShortURLItem struct {
+	CorrelationId string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
 func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
@@ -234,4 +248,62 @@ func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		return
+	}
+
+	var batchAPIRq BatchAPIRq
+
+	if err := json.NewDecoder(req.Body).Decode(&batchAPIRq); err != nil {
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+	}()
+	var batchAPIRs BatchAPIRs
+
+	for _, item := range batchAPIRq {
+		originalURL := strings.TrimSpace(item.OriginalURL)
+		if originalURL == "" {
+			http.Error(w, "URL is empty", http.StatusBadRequest)
+			return
+		}
+
+		shortenedURL, err := ref.generateShortenedURL(originalURL)
+		if err != nil {
+			ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		shortURLItem := ShortURLItem{
+			CorrelationId: item.CorrelationId,
+			ShortURL:      shortenedURL,
+		}
+
+		batchAPIRs = append(batchAPIRs, shortURLItem)
+	}
+
+	resp, err := json.Marshal(batchAPIRs)
+	if err != nil {
+		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if _, err := w.Write(resp); err != nil {
+		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
 }

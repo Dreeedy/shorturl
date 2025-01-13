@@ -40,6 +40,7 @@ func main() {
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
+	router.Post("/api/shorten/batch", newHandlerHTTP.Batch)
 	router.Get("/ping", newHandlerHTTP.Ping)
 
 	if storageType == "db" {
