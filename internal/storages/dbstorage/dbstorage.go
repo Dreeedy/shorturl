@@ -60,7 +60,7 @@ func (ref *DBStorage) SetURL(data common.SetURLData) error {
 
 	query := `INSERT INTO url_mapping (uuid, short_url, original_url) VALUES ($1, $2, $3)`
 	for _, item := range data {
-		_, errExec := tx.Exec(query, item.UUID, item.ShortURL, item.OriginalURL)
+		_, errExec := tx.Exec(query, item.UUID, item.Hash, item.OriginalURL)
 		if errExec != nil {
 			ref.log.Error("Failed to save URL", zap.Error(errExec))
 			return errExec

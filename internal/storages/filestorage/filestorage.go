@@ -59,7 +59,7 @@ func (ref *Filestorage) SetURL(data common.SetURLData) error {
 	for _, item := range data {
 		if err := ref.AppendToFile(URLData{
 			UUID:        item.UUID,
-			ShortURL:    item.ShortURL,
+			ShortURL:    item.Hash,
 			OriginalURL: item.OriginalURL,
 		}); err != nil {
 			return fmt.Errorf("failed to append URL to file: %w", err)
@@ -106,7 +106,7 @@ func (ref *Filestorage) LoadFromFile() error {
 		var setURLData common.SetURLData
 		item := common.SetURLItem{
 			UUID:        data.UUID,
-			ShortURL:    data.ShortURL,
+			Hash:        data.ShortURL,
 			OriginalURL: data.OriginalURL,
 		}
 		setURLData = append(setURLData, item)

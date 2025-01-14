@@ -60,6 +60,28 @@ type ShortURLItem struct {
 	ShortURL      string `json:"short_url"`
 }
 
+type BbbRs []BbbItem
+
+type BbbItem struct {
+	CorrelationId string
+	OriginalURL   string
+	Hash          string
+	ShortURL      string
+	UUID          string
+}
+
+func ConvertBbbRsToSetURLData(bbb BbbRs) common.SetURLData {
+	var setURLData common.SetURLData
+	for _, item := range bbb {
+		setURLData = append(setURLData, common.SetURLItem{
+			UUID:        item.UUID,
+			Hash:        item.Hash,
+			OriginalURL: item.OriginalURL,
+		})
+	}
+	return setURLData
+}
+
 func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
@@ -85,7 +107,15 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortenedURL, err := ref.generateShortenedURL(originalURL)
+	// Convert
+	aaa := BatchAPIRq{
+		{OriginalURL: originalURL},
+	}
+	bbb := ref.generateShortenedURL(aaa)
+	setURLData := ConvertBbbRsToSetURLData(bbb)
+
+	ref.stg.SetURL(setURLData)
+
 	if err != nil {
 		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -94,7 +124,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	if _, err := w.Write([]byte(shortenedURL)); err != nil {
+	if _, err := w.Write([]byte(bbb[0].ShortURL)); err != nil {
 		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
@@ -126,15 +156,17 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortenedURL, err := ref.generateShortenedURL(originalURL)
-	if err != nil {
-		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+	// Convert
+	aaa := BatchAPIRq{
+		{OriginalURL: originalURL},
 	}
+	bbb := ref.generateShortenedURL(aaa)
+	setURLData := ConvertBbbRsToSetURLData(bbb)
+
+	ref.stg.SetURL(setURLData)
 
 	shortenAPIRs := ShortenAPIRs{
-		Result: shortenedURL,
+		Result: bbb[0].ShortURL,
 	}
 
 	resp, err := json.Marshal(shortenAPIRs)
@@ -152,38 +184,25 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *HandlerHTTP) generateShortenedURL(originalURL string) (string, error) {
-	const maxAttempts int = 10
-	var attempts = 0
-	var hash string
-
-	var setURLData common.SetURLData
-	for range [maxAttempts]struct{}{} {
-		hash = ref.generateRandomHash()
-		item := common.SetURLItem{
-			UUID:        uuid.NewString(),
-			ShortURL:    hash,
-			OriginalURL: originalURL,
-		}
-		setURLData = append(setURLData, item)
-
-		attempts++
-	}
-
-	if attempts >= maxAttempts {
-		return "", fmt.Errorf("failed to generate unique hash after %d attempts", attempts)
-	}
-
-	if err := ref.stg.SetURL(setURLData); err == nil {
-		return "", fmt.Errorf("failed to SetURL")
-	}
-
+func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) BbbRs {
+	var result BbbRs
 	cfg := ref.cfg.GetConfig()
 
-	parts := []string{cfg.BaseURL, "/", hash}
-	shortenedURL := strings.Join(parts, "")
+	for _, item := range data {
+		var hash = ref.generateRandomHash()
+		shortenedURL := fmt.Sprintf("%s/%s", cfg.BaseURL, hash)
 
-	return shortenedURL, nil
+		resultItem := BbbItem{
+			item.CorrelationId,
+			item.OriginalURL,
+			hash,
+			shortenedURL,
+			uuid.NewString(),
+		}
+		result = append(result, resultItem)
+	}
+
+	return result
 }
 
 func (ref *HandlerHTTP) generateRandomHash() string {
@@ -278,30 +297,31 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	var batchAPIRs BatchAPIRs
-
 	for _, item := range batchAPIRq {
 		originalURL := strings.TrimSpace(item.OriginalURL)
 		if originalURL == "" {
 			http.Error(w, "URL is empty", http.StatusBadRequest)
 			return
 		}
-
-		shortenedURL, err := ref.generateShortenedURL(originalURL)
-		if err != nil {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		shortURLItem := ShortURLItem{
-			CorrelationId: item.CorrelationId,
-			ShortURL:      shortenedURL,
-		}
-
-		batchAPIRs = append(batchAPIRs, shortURLItem)
 	}
 
+	var batchAPIRs BatchAPIRs
+
+	// Convert
+	bbb := ref.generateShortenedURL(batchAPIRq)
+	setURLData := ConvertBbbRsToSetURLData(bbb)
+
+	ref.stg.SetURL(setURLData)
+
+	for _, item := range bbb {
+		resultItem := ShortURLItem{
+			CorrelationId: item.CorrelationId,
+			ShortURL:      item.ShortURL,
+		}
+		batchAPIRs = append(batchAPIRs, resultItem)
+	}
+
+	////////////////////////////
 	resp, err := json.Marshal(batchAPIRs)
 	if err != nil {
 		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))

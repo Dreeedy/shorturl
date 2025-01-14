@@ -4,6 +4,6 @@ type SetURLData []SetURLItem
 
 type SetURLItem struct {
 	UUID        string
-	ShortURL    string
+	Hash        string
 	OriginalURL string
 }
