@@ -114,10 +114,9 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(aaa)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	ref.stg.SetURL(setURLData)
-
-	if err != nil {
-		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
+	errSetURL := ref.stg.SetURL(setURLData)
+	if errSetURL != nil {
+		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -163,7 +162,12 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(aaa)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	ref.stg.SetURL(setURLData)
+	errSetURL := ref.stg.SetURL(setURLData)
+	if errSetURL != nil {
+		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
 	shortenAPIRs := ShortenAPIRs{
 		Result: bbb[0].ShortURL,
@@ -311,7 +315,12 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(batchAPIRq)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	ref.stg.SetURL(setURLData)
+	errSetURL := ref.stg.SetURL(setURLData)
+	if errSetURL != nil {
+		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
 
 	for _, item := range bbb {
 		resultItem := ShortURLItem{
