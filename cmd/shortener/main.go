@@ -85,12 +85,12 @@ func initDB(cfg config.Config, log *zap.Logger) error {
 	log.Info("Connection to remote database successfully established")
 
 	createTableQuery := `
-    CREATE TABLE IF NOT EXISTS url_mapping (
-        uuid UUID PRIMARY KEY,
-        short_url VARCHAR(255) NOT NULL,
-        original_url TEXT NOT NULL
-    );
-    `
+	CREATE TABLE IF NOT EXISTS url_mapping (
+	uuid UUID PRIMARY KEY,
+	short_url VARCHAR(255) NOT NULL,
+	original_url TEXT NOT NULL UNIQUE
+	);`
+
 	_, err = conn.Exec(createTableQuery)
 	if err != nil {
 		log.Error("Failed Exec sql", zap.Error(err))

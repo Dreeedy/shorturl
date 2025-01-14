@@ -157,25 +157,25 @@ func (ref *HandlerHTTP) generateShortenedURL(originalURL string) (string, error)
 	var attempts = 0
 	var hash string
 
+	var setURLData common.SetURLData
 	for range [maxAttempts]struct{}{} {
 		hash = ref.generateRandomHash()
-
-		var setURLData common.SetURLData
 		item := common.SetURLItem{
 			UUID:        uuid.NewString(),
 			ShortURL:    hash,
 			OriginalURL: originalURL,
 		}
 		setURLData = append(setURLData, item)
-		if err := ref.stg.SetURL(setURLData); err == nil {
-			break
-		}
 
 		attempts++
 	}
 
 	if attempts >= maxAttempts {
 		return "", fmt.Errorf("failed to generate unique hash after %d attempts", attempts)
+	}
+
+	if err := ref.stg.SetURL(setURLData); err == nil {
+		return "", fmt.Errorf("failed to SetURL")
 	}
 
 	cfg := ref.cfg.GetConfig()
