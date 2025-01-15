@@ -88,10 +88,10 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Convert
-	aaa := BatchAPIRq{
+	batchAPIRq := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	setURLData := ref.generateShortenedURL(aaa)
+	setURLData := ref.generateShortenedURL(batchAPIRq)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflict
@@ -150,10 +150,10 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Convert
-	aaa := BatchAPIRq{
+	batchAPIRq := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	setURLData := ref.generateShortenedURL(aaa)
+	setURLData := ref.generateShortenedURL(batchAPIRq)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflict
