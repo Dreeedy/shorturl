@@ -59,7 +59,7 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 	}()
 
 	query := `
-        INSERT INTO url_mapping (uuid, short_url, original_url, last_operation_type, correlation_id)
+        INSERT INTO url_mapping (uuid, hash, original_url, last_operation_type, correlation_id, short_url)
         VALUES `
 	var args []interface{}
 	var argCount int = 0
@@ -68,15 +68,15 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 		if i > 0 {
 			query += ", "
 		}
-		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `, $` + strconv.Itoa(argCount+4) + `, $` + strconv.Itoa(argCount+5) + `)`
-		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationId)
-		argCount += 5
+		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `, $` + strconv.Itoa(argCount+4) + `, $` + strconv.Itoa(argCount+5) + `, $` + strconv.Itoa(argCount+6) + `)`
+		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationId, item.ShortURL)
+		argCount += 6
 	}
 
 	query += `
         ON CONFLICT (original_url) DO UPDATE
         SET original_url = EXCLUDED.original_url, last_operation_type = 'UPDATE'
-        RETURNING uuid, short_url, original_url, last_operation_type, correlation_id;`
+        RETURNING *;`
 
 	ref.log.Sugar().Infow("query", "query", query)
 	ref.log.Sugar().Infow("args", "args", args)
@@ -92,7 +92,7 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 	for rows.Next() {
 		var record common.SetURLItem
 		var operationType string
-		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationId); err != nil {
+		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationId, &record.ShortURL); err != nil {
 			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 // GetURL retrieves a URL from the storage.
 func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
 	var originalURL string
-	query := `SELECT original_url FROM url_mapping WHERE short_url = $1`
+	query := `SELECT original_url FROM url_mapping WHERE hash = $1`
 	errQueryRow := ref.pool.QueryRow(query, shortURL).Scan(&originalURL)
 	if errQueryRow == pgx.ErrNoRows {
 		return "", false
