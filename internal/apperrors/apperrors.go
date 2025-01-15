@@ -4,8 +4,8 @@ import "fmt"
 
 // InsertConflictError represents an error that occurs during an insert conflict.
 type InsertConflictError struct {
-	Code    int
 	Message string
+	Code    int
 }
 
 func (e *InsertConflictError) Error() string {

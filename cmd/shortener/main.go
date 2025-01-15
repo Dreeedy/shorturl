@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -59,23 +60,23 @@ func main() {
 	}
 }
 
-func initDB(cfg config.Config, log *zap.Logger) error {
+func initDB(cfg config.Config, newLogger *zap.Logger) error {
 	// Parse the connection string
-	log.Info("DBConnectionAdress", zap.String("DBConnectionAdress", cfg.GetConfig().DBConnectionAdress))
+	newLogger.Info("DBConnectionAdress", zap.String("DBConnectionAdress", cfg.GetConfig().DBConnectionAdress))
 	connConfig, err := pgx.ParseConnectionString(cfg.GetConfig().DBConnectionAdress)
 	if err != nil {
-		log.Error("Failed to parse connection string", zap.Error(err))
-		return err
+		newLogger.Error("Failed to parse connection string", zap.Error(err))
+		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
 	// Establish the connection
 	conn, err := pgx.Connect(connConfig)
 	if err != nil {
-		log.Error("Failed to connect to remote database", zap.Error(err))
-		return err
+		newLogger.Error("Failed to connect to remote database", zap.Error(err))
+		return fmt.Errorf("failed to connect to remote database: %w", err)
 	}
 
-	log.Info("Connection to remote database successfully established")
+	newLogger.Info("Connection to remote database successfully established")
 
 	createTableQuery := `
 	CREATE TABLE IF NOT EXISTS url_mapping (
@@ -89,8 +90,8 @@ func initDB(cfg config.Config, log *zap.Logger) error {
 
 	_, err = conn.Exec(createTableQuery)
 	if err != nil {
-		log.Error("Failed Exec sql", zap.Error(err))
-		return err
+		newLogger.Error("Failed Exec sql", zap.Error(err))
+		return fmt.Errorf("failed to execute SQL: %w", err)
 	}
 
 	return nil
