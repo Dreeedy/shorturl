@@ -3,6 +3,7 @@ package dbstorage
 import (
 	"strconv"
 
+	"github.com/Dreeedy/shorturl/internal/apperrors"
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/jackc/pgx"
@@ -70,7 +71,7 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 		argCount += 3
 	}
 
-	query += ` ON CONFLICT (original_url) DO UPDATE SET uuid = EXCLUDED.uuid, short_url = EXCLUDED.short_url RETURNING uuid, short_url, original_url;`
+	query += ` ON CONFLICT (original_url) DO UPDATE SET original_url = EXCLUDED.original_url RETURNING uuid, short_url, original_url;`
 
 	ref.log.Sugar().Infow("query", "query", query)
 	ref.log.Sugar().Infow("args", "args", args)
@@ -99,7 +100,7 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 
 	ref.log.Sugar().Infow("existingRecords", "existingRecords", existingRecords)
 
-	return existingRecords, nil
+	return existingRecords, apperrors.NewInsertConflict(409, "Insert conflict")
 }
 
 // GetURL retrieves a URL from the storage.
