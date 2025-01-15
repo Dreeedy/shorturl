@@ -57,7 +57,6 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 		}
 	}()
 
-	var existingRecords common.SetURLData
 	query := `INSERT INTO url_mapping (uuid, short_url, original_url) VALUES `
 	var args []interface{}
 	var argCount int
@@ -71,21 +70,33 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 		argCount += 3
 	}
 
-	ref.log.Sugar().Infow("query", "query", query)
-
 	query += ` ON CONFLICT (original_url) DO UPDATE SET uuid = EXCLUDED.uuid, short_url = EXCLUDED.short_url RETURNING uuid, short_url, original_url;`
 
 	ref.log.Sugar().Infow("query", "query", query)
-
 	ref.log.Sugar().Infow("args", "args", args)
 
-	commandTag, errExec := tx.Exec(query, args...)
+	rows, errExec := tx.Query(query, args...)
 	if errExec != nil {
 		ref.log.Error("Failed to save URL", zap.Error(errExec))
 		return nil, errExec
 	}
+	defer rows.Close()
 
-	ref.log.Sugar().Infow("commandTag", "commandTag", commandTag)
+	var existingRecords common.SetURLData
+	for rows.Next() {
+		var record common.SetURLItem
+		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL); err != nil {
+			ref.log.Error("Failed to scan row", zap.Error(err))
+			return nil, err
+		}
+		existingRecords = append(existingRecords, record)
+	}
+
+	if err := rows.Err(); err != nil {
+		ref.log.Error("Row iteration error", zap.Error(err))
+		return nil, err
+	}
+
 	ref.log.Sugar().Infow("existingRecords", "existingRecords", existingRecords)
 
 	return existingRecords, nil

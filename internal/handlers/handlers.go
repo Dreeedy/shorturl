@@ -330,6 +330,9 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		batchAPIRs = append(batchAPIRs, resultItem)
 	}
 
+	ref.log.Sugar().Infow("Batch.batchAPIRs", "batchAPIRs", batchAPIRs)
+	ref.log.Sugar().Infow("Batch.existingRecords", "existingRecords", existingRecords)
+
 	if len(existingRecords) > 0 {
 		// If there are existing records, return 409 Conflict and the existing short URLs
 		conflictResponses := make([]ShortURLItem, len(existingRecords))
