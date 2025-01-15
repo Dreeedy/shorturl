@@ -22,7 +22,7 @@ func NewRAMStorage() *RAMStorage {
 }
 
 // SetURL saves a URL in the storage.
-func (s *RAMStorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
+func (s *RAMStorage) SetURL(data common.URLData) (common.URLData, error) {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
 

@@ -39,7 +39,7 @@ func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) (*DBStorage, e
 	}, nil
 }
 
-func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
+func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	tx, err := ref.pool.Begin()
 	if err != nil {
 		ref.log.Error("Failed to begin transaction", zap.Error(err))
@@ -62,14 +62,14 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
         INSERT INTO url_mapping (uuid, hash, original_url, last_operation_type, correlation_id, short_url)
         VALUES `
 	var args []interface{}
-	var argCount int = 0
+	var argCount int
 
 	for i, item := range data {
 		if i > 0 {
 			query += ", "
 		}
 		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `, $` + strconv.Itoa(argCount+4) + `, $` + strconv.Itoa(argCount+5) + `, $` + strconv.Itoa(argCount+6) + `)`
-		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationId, item.ShortURL)
+		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationID, item.ShortURL)
 		argCount += 6
 	}
 
@@ -88,11 +88,11 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 	}
 	defer rows.Close()
 
-	var existingRecords common.SetURLData
+	var existingRecords common.URLData
 	for rows.Next() {
-		var record common.SetURLItem
+		var record common.URLItem
 		var operationType string
-		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationId, &record.ShortURL); err != nil {
+		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationID, &record.ShortURL); err != nil {
 			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, err
 		}

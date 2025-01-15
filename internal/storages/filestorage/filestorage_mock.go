@@ -50,10 +50,10 @@ func (mr *MockStorageMockRecorder) GetURL(shortURL interface{}) *gomock.Call {
 }
 
 // SetURL mocks base method.
-func (m *MockStorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
+func (m *MockStorage) SetURL(data common.URLData) (common.URLData, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetURL", data)
-	ret0, _ := ret[0].(common.SetURLData)
+	ret0, _ := ret[0].(common.URLData)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

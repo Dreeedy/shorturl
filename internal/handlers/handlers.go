@@ -51,14 +51,14 @@ type ShortenAPIRs struct {
 type BatchAPIRq []OriginalURLItem
 
 type OriginalURLItem struct {
-	CorrelationId string `json:"correlation_id"`
+	CorrelationID string `json:"correlation_id"`
 	OriginalURL   string `json:"original_url"`
 }
 
 type BatchAPIRs []ShortURLItem
 
 type ShortURLItem struct {
-	CorrelationId string `json:"correlation_id"`
+	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }
 
@@ -205,20 +205,20 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.SetURLData {
-	var result common.SetURLData
+func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.URLData {
+	var result common.URLData
 	cfg := ref.cfg.GetConfig()
 
 	for _, item := range data {
 		var hash = ref.generateRandomHash()
 		shortenedURL := fmt.Sprintf("%s/%s", cfg.BaseURL, hash)
 
-		resultItem := common.SetURLItem{
+		resultItem := common.URLItem{
 			UUID:          uuid.NewString(),
 			Hash:          hash,
 			OriginalURL:   item.OriginalURL,
 			OperationType: "INSERT",
-			CorrelationId: item.CorrelationId,
+			CorrelationID: item.CorrelationID,
 			ShortURL:      shortenedURL,
 		}
 		result = append(result, resultItem)
@@ -243,9 +243,9 @@ func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	shortUrl := chi.URLParam(req, "id")
+	shortURL := chi.URLParam(req, "id")
 
-	originalURL, found := ref.stg.GetURL(shortUrl)
+	originalURL, found := ref.stg.GetURL(shortURL)
 
 	if !found {
 		http.Error(w, "URL not found", http.StatusBadRequest)
@@ -338,11 +338,10 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		if errors.As(errSetURL, &errInsertConflict) {
 			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
 
-			// If there are existing records, return 409 Conflict and the existing short URLs
 			conflictResponses := make([]ShortURLItem, len(existingRecords))
 			for i, record := range existingRecords {
 				conflictResponses[i] = ShortURLItem{
-					CorrelationId: record.CorrelationId,
+					CorrelationID: record.CorrelationID,
 					ShortURL:      record.Hash,
 				}
 			}
@@ -369,7 +368,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 
 	for _, item := range setURLData {
 		resultItem := ShortURLItem{
-			CorrelationId: item.CorrelationId,
+			CorrelationID: item.CorrelationID,
 			ShortURL:      item.ShortURL,
 		}
 		batchAPIRs = append(batchAPIRs, resultItem)

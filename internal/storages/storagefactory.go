@@ -13,7 +13,7 @@ import (
 )
 
 type Storage interface {
-	SetURL(data common.SetURLData) (common.SetURLData, error)
+	SetURL(data common.URLData) (common.URLData, error)
 	GetURL(shortURL string) (string, bool)
 }
 

@@ -48,7 +48,7 @@ func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *Filestorage
 }
 
 // SetURL sets a new URL in the storage.
-func (ref *Filestorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
+func (ref *Filestorage) SetURL(data common.URLData) (common.URLData, error) {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
@@ -103,8 +103,8 @@ func (ref *Filestorage) LoadFromFile() error {
 			}
 			return fmt.Errorf("json.Decoder.Decode: %w", err)
 		}
-		var setURLData common.SetURLData
-		item := common.SetURLItem{
+		var setURLData common.URLData
+		item := common.URLItem{
 			UUID:        data.UUID,
 			Hash:        data.ShortURL,
 			OriginalURL: data.OriginalURL,

@@ -1,12 +1,12 @@
 package common
 
-type SetURLData []SetURLItem
+type URLData []URLItem
 
-type SetURLItem struct {
+type URLItem struct {
 	UUID          string
 	Hash          string
 	OriginalURL   string
 	OperationType string
-	CorrelationId string
+	CorrelationID string
 	ShortURL      string
 }
