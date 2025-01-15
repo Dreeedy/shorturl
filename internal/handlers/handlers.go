@@ -62,30 +62,6 @@ type ShortURLItem struct {
 	ShortURL      string `json:"short_url"`
 }
 
-type BbbRs []BbbItem
-
-type BbbItem struct {
-	CorrelationId string
-	OriginalURL   string
-	Hash          string
-	ShortURL      string
-	UUID          string
-}
-
-func ConvertBbbRsToSetURLData(bbb BbbRs) common.SetURLData {
-	var setURLData common.SetURLData
-	for _, item := range bbb {
-		setURLData = append(setURLData, common.SetURLItem{
-			UUID:          item.UUID,
-			Hash:          item.Hash,
-			OriginalURL:   item.OriginalURL,
-			CorrelationId: item.CorrelationId,
-			ShortURL:      item.ShortURL,
-		})
-	}
-	return setURLData
-}
-
 func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusBadRequest)
@@ -115,8 +91,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	aaa := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	bbb := ref.generateShortenedURL(aaa)
-	setURLData := ConvertBbbRsToSetURLData(bbb)
+	setURLData := ref.generateShortenedURL(aaa)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflict
@@ -127,7 +102,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)
-			if _, err := w.Write([]byte(existingRecords[0].Hash)); err != nil {
+			if _, err := w.Write([]byte(existingRecords[0].ShortURL)); err != nil {
 				ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
@@ -142,7 +117,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	if _, err := w.Write([]byte(bbb[0].ShortURL)); err != nil {
+	if _, err := w.Write([]byte(setURLData[0].ShortURL)); err != nil {
 		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
@@ -178,8 +153,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	aaa := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	bbb := ref.generateShortenedURL(aaa)
-	setURLData := ConvertBbbRsToSetURLData(bbb)
+	setURLData := ref.generateShortenedURL(aaa)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflict
@@ -210,16 +184,14 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 			return
 
 		} else {
-			if errSetURL != nil {
-				ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
+			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
 	}
 
 	shortenAPIRs := ShortenAPIRs{
-		Result: bbb[0].ShortURL,
+		Result: setURLData[0].ShortURL,
 	}
 
 	resp, err := json.Marshal(shortenAPIRs)
@@ -237,20 +209,21 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) BbbRs {
-	var result BbbRs
+func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.SetURLData {
+	var result common.SetURLData
 	cfg := ref.cfg.GetConfig()
 
 	for _, item := range data {
 		var hash = ref.generateRandomHash()
 		shortenedURL := fmt.Sprintf("%s/%s", cfg.BaseURL, hash)
 
-		resultItem := BbbItem{
-			item.CorrelationId,
-			item.OriginalURL,
-			hash,
-			shortenedURL,
-			uuid.NewString(),
+		resultItem := common.SetURLItem{
+			UUID:          uuid.NewString(),
+			Hash:          hash,
+			OriginalURL:   item.OriginalURL,
+			OperationType: "INSERT",
+			CorrelationId: item.CorrelationId,
+			ShortURL:      shortenedURL,
 		}
 		result = append(result, resultItem)
 	}
@@ -361,8 +334,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	var batchAPIRs BatchAPIRs
 
 	// Convert
-	bbb := ref.generateShortenedURL(batchAPIRq)
-	setURLData := ConvertBbbRsToSetURLData(bbb)
+	setURLData := ref.generateShortenedURL(batchAPIRq)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflict
@@ -399,7 +371,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	for _, item := range bbb {
+	for _, item := range setURLData {
 		resultItem := ShortURLItem{
 			CorrelationId: item.CorrelationId,
 			ShortURL:      item.ShortURL,
