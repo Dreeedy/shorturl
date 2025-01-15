@@ -331,8 +331,9 @@ func TestBatch(t *testing.T) {
 				{"correlation_id": "2", "original_url": "https://www.google.com/"}
 			]`,
 			want: want{
-				code:        201,
-				response:    `[{"correlation_id":"1","short_url":"http://localhost:8080/"},{"correlation_id":"2","short_url":"http://localhost:8080/"}]`, // The exact hash will be checked later.
+				code: 201,
+				response: `[{"correlation_id":"1","short_url":"http://localhost:8080/"}` +
+					`,{"correlation_id":"2","short_url":"http://localhost:8080/"}]`,
 				contentType: "application/json",
 			},
 		},

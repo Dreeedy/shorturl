@@ -2,6 +2,7 @@ package dbstorage
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/Dreeedy/shorturl/internal/apperrors"
@@ -9,6 +10,17 @@ import (
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/jackc/pgx"
 	"go.uber.org/zap"
+)
+
+const (
+	maxConnections = 10
+	maxArgCount    = 6
+	argIDOffset1   = 1
+	argIDOffset2   = 2
+	argIDOffset3   = 3
+	argIDOffset4   = 4
+	argIDOffset5   = 5
+	argIDOffset6   = 6
 )
 
 type DBStorage struct {
@@ -20,18 +32,18 @@ func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) (*DBStorage, e
 	cfg, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
 	if err != nil {
 		newLogger.Error("Failed to parse connection string", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
 	poolConfig := pgx.ConnPoolConfig{
 		ConnConfig:     cfg,
-		MaxConnections: 10,
+		MaxConnections: maxConnections,
 	}
 
 	pool, err := pgx.NewConnPool(poolConfig)
 	if err != nil {
 		newLogger.Error("Failed to create connection pool", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
 	return &DBStorage{
@@ -44,7 +56,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	tx, err := ref.pool.Begin()
 	if err != nil {
 		ref.log.Error("Failed to begin transaction", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -62,16 +74,18 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	query := `
         INSERT INTO url_mapping (uuid, hash, original_url, last_operation_type, correlation_id, short_url)
         VALUES `
-	args := make([]interface{}, 0, len(data)*6)
+	args := make([]interface{}, 0, len(data)*maxArgCount)
 	var argCount int
 
 	for i, item := range data {
 		if i > 0 {
 			query += ", "
 		}
-		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `, $` + strconv.Itoa(argCount+4) + `, $` + strconv.Itoa(argCount+5) + `, $` + strconv.Itoa(argCount+6) + `)`
+		query += `($` + strconv.Itoa(argCount+argIDOffset1) + `, $` + strconv.Itoa(argCount+argIDOffset2) + `, $` +
+			strconv.Itoa(argCount+argIDOffset3) + `, $` + strconv.Itoa(argCount+argIDOffset4) + `, $` +
+			strconv.Itoa(argCount+argIDOffset5) + `, $` + strconv.Itoa(argCount+argIDOffset6) + `)`
 		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationID, item.ShortURL)
-		argCount += 6
+		argCount += maxArgCount
 	}
 
 	query += `
@@ -85,7 +99,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	rows, errExec := tx.Query(query, args...)
 	if errExec != nil {
 		ref.log.Error("Failed to save URL", zap.Error(errExec))
-		return nil, errExec
+		return nil, fmt.Errorf("failed to save URL: %w", errExec)
 	}
 	defer rows.Close()
 
@@ -93,9 +107,10 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	for rows.Next() {
 		var record common.URLItem
 		var operationType string
-		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationID, &record.ShortURL); err != nil {
+		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationID,
+			&record.ShortURL); err != nil {
 			ref.log.Error("Failed to scan row", zap.Error(err))
-			return nil, err
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		record.OperationType = operationType
 		if record.OperationType == "UPDATE" {
@@ -105,13 +120,15 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 
 	if err := rows.Err(); err != nil {
 		ref.log.Error("Row iteration error", zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
 	ref.log.Sugar().Infow("existingRecords", "existingRecords", existingRecords)
 
 	if len(existingRecords) > 0 {
-		return existingRecords, apperrors.NewInsertConflict(409, "Insert conflict")
+		errorCode := 409
+		return existingRecords, fmt.Errorf("insert conflict: %w",
+			apperrors.NewInsertConflict(errorCode, "Insert conflict"))
 	} else {
 		return nil, nil
 	}

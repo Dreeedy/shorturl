@@ -332,7 +332,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	}
 
 	initialCapacity := len(batchAPIRq)
-	var batchAPIRs = make(BatchAPIRs, initialCapacity)
+	var batchAPIRs = make(BatchAPIRs, 0, initialCapacity)
 
 	// Convert
 	setURLData := ref.generateShortenedURL(batchAPIRq)
