@@ -22,8 +22,15 @@ import (
 )
 
 const (
-	errorKey           = "err"
-	unableToReadRqBody = "Unable to read request body"
+	errorKey                   = "err"
+	unableToReadRqBody         = "Unable to read request body"
+	contentType                = "Content-Type"
+	contentTypeApplicationJSON = "application/json"
+	invalidReqMethod           = "Invalid request method"
+	urlIsEmpty                 = "URL is empty"
+	unableToWriteResp          = "Unable to write response"
+	unableToMarshalResp        = "Unable to marshal response"
+	unableToCloseRqBody        = "Unable to close request body"
 )
 
 type HandlerHTTP struct {
@@ -64,7 +71,7 @@ type ShortURLItem struct {
 
 func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -76,14 +83,14 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {
-		http.Error(w, "URL is empty", http.StatusBadRequest)
+		http.Error(w, urlIsEmpty, http.StatusBadRequest)
 		return
 	}
 
@@ -97,17 +104,15 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-
 			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
 
-			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set(contentType, contentTypeApplicationJSON)
 			w.WriteHeader(http.StatusConflict)
 			if _, err := w.Write([]byte(existingRecords[0].ShortURL)); err != nil {
-				ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+				ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
-
 		} else {
 			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -115,17 +120,17 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set(contentType, "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write([]byte(setURLData[0].ShortURL)); err != nil {
-		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
 func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -138,14 +143,14 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
 	originalURL := strings.TrimSpace(shortenAPIRq.URL)
 	if originalURL == "" {
-		http.Error(w, "URL is empty", http.StatusBadRequest)
+		http.Error(w, urlIsEmpty, http.StatusBadRequest)
 		return
 	}
 
@@ -167,18 +172,17 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 			}
 			resp, err := json.Marshal(conflictResponse)
 			if err != nil {
-				ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+				ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set(contentType, contentTypeApplicationJSON)
 			w.WriteHeader(http.StatusConflict)
 			if _, err := w.Write(resp); err != nil {
-				ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+				ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
-
 		} else {
 			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -192,15 +196,15 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 
 	resp, err := json.Marshal(shortenAPIRs)
 	if err != nil {
-		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentType, contentTypeApplicationJSON)
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
-		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
@@ -239,7 +243,7 @@ func (ref *HandlerHTTP) generateRandomHash() string {
 
 func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -258,7 +262,7 @@ func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 
 func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -301,7 +305,7 @@ func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 
 func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -314,7 +318,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
@@ -322,12 +326,13 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	for _, item := range batchAPIRq {
 		originalURL := strings.TrimSpace(item.OriginalURL)
 		if originalURL == "" {
-			http.Error(w, "URL is empty", http.StatusBadRequest)
+			http.Error(w, urlIsEmpty, http.StatusBadRequest)
 			return
 		}
 	}
 
-	var batchAPIRs BatchAPIRs
+	initialCapacity := len(batchAPIRq)
+	var batchAPIRs = make(BatchAPIRs, initialCapacity)
 
 	// Convert
 	setURLData := ref.generateShortenedURL(batchAPIRq)
@@ -347,18 +352,17 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 			}
 			resp, err := json.Marshal(conflictResponses)
 			if err != nil {
-				ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+				ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
-			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set(contentType, contentTypeApplicationJSON)
 			w.WriteHeader(http.StatusConflict)
 			if _, err := w.Write(resp); err != nil {
-				ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+				ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 			return
-
 		} else {
 			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -379,15 +383,15 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 
 	resp, err := json.Marshal(batchAPIRs)
 	if err != nil {
-		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentType, contentTypeApplicationJSON)
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
-		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
