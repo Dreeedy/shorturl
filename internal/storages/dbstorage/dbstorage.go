@@ -1,6 +1,7 @@
 package dbstorage
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/Dreeedy/shorturl/internal/apperrors"
@@ -16,14 +17,14 @@ type DBStorage struct {
 }
 
 func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) (*DBStorage, error) {
-	config, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
+	cfg, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
 	if err != nil {
 		newLogger.Error("Failed to parse connection string", zap.Error(err))
 		return nil, err
 	}
 
 	poolConfig := pgx.ConnPoolConfig{
-		ConnConfig:     config,
+		ConnConfig:     cfg,
 		MaxConnections: 10,
 	}
 
@@ -61,7 +62,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	query := `
         INSERT INTO url_mapping (uuid, hash, original_url, last_operation_type, correlation_id, short_url)
         VALUES `
-	var args []interface{}
+	args := make([]interface{}, 0, len(data)*6)
 	var argCount int
 
 	for i, item := range data {
@@ -121,7 +122,7 @@ func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
 	var originalURL string
 	query := `SELECT original_url FROM url_mapping WHERE hash = $1`
 	errQueryRow := ref.pool.QueryRow(query, shortURL).Scan(&originalURL)
-	if errQueryRow == pgx.ErrNoRows {
+	if errors.Is(errQueryRow, pgx.ErrNoRows) {
 		return "", false
 	} else if errQueryRow != nil {
 		ref.log.Error("Failed to retrieve URL", zap.Error(errQueryRow))
