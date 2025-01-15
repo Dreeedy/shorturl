@@ -94,7 +94,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	setURLData := ref.generateShortenedURL(batchAPIRq)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
-	var errInsertConflict *apperrors.InsertConflict
+	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
 
@@ -156,7 +156,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	setURLData := ref.generateShortenedURL(batchAPIRq)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
-	var errInsertConflict *apperrors.InsertConflict
+	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
 			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
@@ -333,7 +333,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	setURLData := ref.generateShortenedURL(batchAPIRq)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
-	var errInsertConflict *apperrors.InsertConflict
+	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
 			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
