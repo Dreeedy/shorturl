@@ -76,9 +76,11 @@ func ConvertBbbRsToSetURLData(bbb BbbRs) common.SetURLData {
 	var setURLData common.SetURLData
 	for _, item := range bbb {
 		setURLData = append(setURLData, common.SetURLItem{
-			UUID:        item.UUID,
-			Hash:        item.Hash,
-			OriginalURL: item.OriginalURL,
+			UUID:          item.UUID,
+			Hash:          item.Hash,
+			OriginalURL:   item.OriginalURL,
+			CorrelationId: item.CorrelationId,
+			ShortURL:      item.ShortURL,
 		})
 	}
 	return setURLData
@@ -116,11 +118,26 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(aaa)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	_, errSetURL := ref.stg.SetURL(setURLData)
+	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
+	var errInsertConflict *apperrors.InsertConflict
 	if errSetURL != nil {
-		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+		if errors.As(errSetURL, &errInsertConflict) {
+
+			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			if _, err := w.Write([]byte(existingRecords[0].Hash)); err != nil {
+				ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+			return
+
+		} else {
+			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/plain")
@@ -164,11 +181,41 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(aaa)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	_, errSetURL := ref.stg.SetURL(setURLData)
+	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
+	var errInsertConflict *apperrors.InsertConflict
 	if errSetURL != nil {
-		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+		if errors.As(errSetURL, &errInsertConflict) {
+			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
+
+			// If there are existing records, return 409 Conflict and the existing short URLs
+			conflictResponses := make([]ShortURLItem, len(existingRecords))
+			for i, record := range existingRecords {
+				conflictResponses[i] = ShortURLItem{
+					CorrelationId: record.CorrelationId,
+					ShortURL:      record.Hash,
+				}
+			}
+			resp, err := json.Marshal(conflictResponses)
+			if err != nil {
+				ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			if _, err := w.Write(resp); err != nil {
+				ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+			return
+
+		} else {
+			if errSetURL != nil {
+				ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 
 	shortenAPIRs := ShortenAPIRs{
@@ -327,7 +374,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 			conflictResponses := make([]ShortURLItem, len(existingRecords))
 			for i, record := range existingRecords {
 				conflictResponses[i] = ShortURLItem{
-					CorrelationId: "record.CorrelationId",
+					CorrelationId: record.CorrelationId,
 					ShortURL:      record.Hash,
 				}
 			}

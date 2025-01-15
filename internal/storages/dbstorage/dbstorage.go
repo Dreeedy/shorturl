@@ -58,20 +58,25 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 		}
 	}()
 
-	query := `INSERT INTO url_mapping (uuid, short_url, original_url) VALUES `
+	query := `
+        INSERT INTO url_mapping (uuid, short_url, original_url, last_operation_type, correlation_id)
+        VALUES `
 	var args []interface{}
-	var argCount int
+	var argCount int = 0
 
 	for i, item := range data {
 		if i > 0 {
 			query += ", "
 		}
-		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `)`
-		args = append(args, item.UUID, item.Hash, item.OriginalURL)
-		argCount += 3
+		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `, $` + strconv.Itoa(argCount+4) + `, $` + strconv.Itoa(argCount+5) + `)`
+		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationId)
+		argCount += 5
 	}
 
-	query += ` ON CONFLICT (original_url) DO UPDATE SET original_url = EXCLUDED.original_url RETURNING uuid, short_url, original_url;`
+	query += `
+        ON CONFLICT (original_url) DO UPDATE
+        SET original_url = EXCLUDED.original_url, last_operation_type = 'UPDATE'
+        RETURNING uuid, short_url, original_url, last_operation_type, correlation_id;`
 
 	ref.log.Sugar().Infow("query", "query", query)
 	ref.log.Sugar().Infow("args", "args", args)
@@ -86,11 +91,15 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 	var existingRecords common.SetURLData
 	for rows.Next() {
 		var record common.SetURLItem
-		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL); err != nil {
+		var operationType string
+		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationId); err != nil {
 			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, err
 		}
-		existingRecords = append(existingRecords, record)
+		record.OperationType = operationType
+		if record.OperationType == "UPDATE" {
+			existingRecords = append(existingRecords, record)
+		}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -100,7 +109,11 @@ func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) 
 
 	ref.log.Sugar().Infow("existingRecords", "existingRecords", existingRecords)
 
-	return existingRecords, apperrors.NewInsertConflict(409, "Insert conflict")
+	if len(existingRecords) > 0 {
+		return existingRecords, apperrors.NewInsertConflict(409, "Insert conflict")
+	} else {
+		return nil, nil
+	}
 }
 
 // GetURL retrieves a URL from the storage.

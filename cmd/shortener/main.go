@@ -81,7 +81,9 @@ func initDB(cfg config.Config, log *zap.Logger) error {
 	CREATE TABLE IF NOT EXISTS url_mapping (
 	uuid UUID PRIMARY KEY,
 	short_url VARCHAR(255) NOT NULL,
-	original_url TEXT NOT NULL UNIQUE
+	original_url TEXT NOT NULL UNIQUE,
+	last_operation_type VARCHAR(255) NOT NULL,
+	correlation_id VARCHAR(255) NULL
 	);`
 
 	_, err = conn.Exec(createTableQuery)
