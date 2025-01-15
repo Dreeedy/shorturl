@@ -74,13 +74,6 @@ func initDB(cfg config.Config, log *zap.Logger) error {
 		log.Error("Failed to connect to remote database", zap.Error(err))
 		return err
 	}
-	defer func() {
-		if conn != nil {
-			if err := conn.Close(); err != nil {
-				log.Error("Failed to close connection to remote database", zap.Error(err))
-			}
-		}
-	}()
 
 	log.Info("Connection to remote database successfully established")
 

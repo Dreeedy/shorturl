@@ -1,6 +1,8 @@
 package dbstorage
 
 import (
+	"strconv"
+
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/jackc/pgx"
@@ -8,100 +10,83 @@ import (
 )
 
 type DBStorage struct {
-	cfg config.Config
-	log *zap.Logger
+	pool *pgx.ConnPool
+	log  *zap.Logger
 }
 
-func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) *DBStorage {
+func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) (*DBStorage, error) {
+	config, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
+	if err != nil {
+		newLogger.Error("Failed to parse connection string", zap.Error(err))
+		return nil, err
+	}
+
+	poolConfig := pgx.ConnPoolConfig{
+		ConnConfig:     config,
+		MaxConnections: 10,
+	}
+
+	pool, err := pgx.NewConnPool(poolConfig)
+	if err != nil {
+		newLogger.Error("Failed to create connection pool", zap.Error(err))
+		return nil, err
+	}
+
 	return &DBStorage{
-		log: newLogger,
-		cfg: newConfig,
-	}
+		pool: pool,
+		log:  newLogger,
+	}, nil
 }
 
-// SetURL saves a URL in the storage.
-func (ref *DBStorage) SetURL(data common.SetURLData) error {
-	// Parse the connection string
-	connConfig, err := pgx.ParseConnectionString(ref.cfg.GetConfig().DBConnectionAdress)
-	if err != nil {
-		ref.log.Error("Failed to parse connection string", zap.Error(err))
-		return err
-	}
-
-	// Establish the connection
-	conn, err := pgx.Connect(connConfig)
-	if err != nil {
-		ref.log.Error("Failed to connect to remote database", zap.Error(err))
-		return err
-	}
-	defer func() {
-		if conn != nil {
-			if err := conn.Close(); err != nil {
-				ref.log.Error("Failed to close connection to remote database", zap.Error(err))
-			}
-		}
-	}()
-
-	ref.log.Info("Connection to remote database successfully established")
-
-	// Begin a transaction
-	tx, err := conn.Begin()
+func (ref *DBStorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
+	tx, err := ref.pool.Begin()
 	if err != nil {
 		ref.log.Error("Failed to begin transaction", zap.Error(err))
-		return err
+		return nil, err
 	}
 	defer func() {
-		if tx != nil {
-			if err := tx.Rollback(); err != nil {
-				ref.log.Error("Failed to rollback transaction", zap.Error(err))
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				ref.log.Error("Failed to rollback transaction", zap.Error(rollbackErr))
+			}
+		} else {
+			if commitErr := tx.Commit(); commitErr != nil {
+				ref.log.Error("Failed to commit transaction", zap.Error(commitErr))
+				err = commitErr
 			}
 		}
 	}()
 
-	query := `INSERT INTO url_mapping (uuid, short_url, original_url) VALUES ($1, $2, $3)`
-	for _, item := range data {
-		_, errExec := tx.Exec(query, item.UUID, item.Hash, item.OriginalURL)
-		if errExec != nil {
-			ref.log.Error("Failed to save URL", zap.Error(errExec))
-			return errExec
+	var existingRecords common.SetURLData
+	query := `INSERT INTO url_mapping (uuid, short_url, original_url) VALUES `
+	var args []interface{}
+	var argCount int
+
+	for i, item := range data {
+		if i > 0 {
+			query += ", "
 		}
+		query += `($` + strconv.Itoa(argCount+1) + `, $` + strconv.Itoa(argCount+2) + `, $` + strconv.Itoa(argCount+3) + `)`
+		args = append(args, item.UUID, item.Hash, item.OriginalURL)
+		argCount += 3
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		ref.log.Error("Failed to commit transaction", zap.Error(err))
-		return err
+	_, errExec := tx.Exec(query, args...)
+	if errExec != nil {
+		ref.log.Error("Failed to save URL", zap.Error(errExec))
+		return nil, errExec
 	}
 
-	return nil
+	ref.log.Sugar().Infow("existingRecords", "existingRecords", existingRecords)
+
+	return existingRecords, nil
 }
 
 // GetURL retrieves a URL from the storage.
 func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
-
-	// Parse the connection string
-	connConfig, err := pgx.ParseConnectionString(ref.cfg.GetConfig().DBConnectionAdress)
-	if err != nil {
-		ref.log.Error("Failed to parse connection string", zap.Error(err))
-	}
-	// Establish the connection
-	conn, err := pgx.Connect(connConfig)
-	if err != nil {
-		ref.log.Error("Failed to connect to remote database", zap.Error(err))
-	}
-	defer func() {
-		if conn != nil {
-			if err := conn.Close(); err != nil {
-				ref.log.Error("Failed to close connection to remote database", zap.Error(err))
-			}
-		}
-	}()
-
-	ref.log.Info("Connection to remote database successfully established")
-
 	var originalURL string
 	query := `SELECT original_url FROM url_mapping WHERE short_url = $1`
-	errQueryRow := conn.QueryRow(query, shortURL).Scan(&originalURL)
+	errQueryRow := ref.pool.QueryRow(query, shortURL).Scan(&originalURL)
 	if errQueryRow == pgx.ErrNoRows {
 		return "", false
 	} else if errQueryRow != nil {

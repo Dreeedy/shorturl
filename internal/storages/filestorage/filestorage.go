@@ -48,12 +48,12 @@ func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *Filestorage
 }
 
 // SetURL sets a new URL in the storage.
-func (ref *Filestorage) SetURL(data common.SetURLData) error {
+func (ref *Filestorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
-	if err := ref.ramStorage.SetURL(data); err != nil {
-		return fmt.Errorf("failed to set URL in memory store: %w", err)
+	if _, err := ref.ramStorage.SetURL(data); err != nil {
+		return nil, fmt.Errorf("failed to set URL in memory store: %w", err)
 	}
 
 	for _, item := range data {
@@ -62,11 +62,11 @@ func (ref *Filestorage) SetURL(data common.SetURLData) error {
 			ShortURL:    item.Hash,
 			OriginalURL: item.OriginalURL,
 		}); err != nil {
-			return fmt.Errorf("failed to append URL to file: %w", err)
+			return nil, fmt.Errorf("failed to append URL to file: %w", err)
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // GetURL retrieves the original URL for a given short URL.
@@ -110,7 +110,7 @@ func (ref *Filestorage) LoadFromFile() error {
 			OriginalURL: data.OriginalURL,
 		}
 		setURLData = append(setURLData, item)
-		if err := ref.ramStorage.SetURL(setURLData); err != nil {
+		if _, err := ref.ramStorage.SetURL(setURLData); err != nil {
 			return fmt.Errorf("failed to set URL in memory store: %w", err)
 		}
 	}

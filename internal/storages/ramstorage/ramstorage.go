@@ -22,18 +22,18 @@ func NewRAMStorage() *RAMStorage {
 }
 
 // SetURL saves a URL in the storage.
-func (s *RAMStorage) SetURL(data common.SetURLData) error {
+func (s *RAMStorage) SetURL(data common.SetURLData) (common.SetURLData, error) {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
 
 	for _, item := range data {
 		if _, exists := s.urlMap[item.Hash]; exists {
-			return fmt.Errorf("hash already exists for shortURL: %s", item.Hash)
+			return nil, fmt.Errorf("hash already exists for shortURL: %s", item.Hash)
 		}
 		s.urlMap[item.Hash] = item.OriginalURL
 	}
 
-	return nil
+	return nil, nil
 }
 
 // GetURL retrieves a URL from the storage.

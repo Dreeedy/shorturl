@@ -114,7 +114,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(aaa)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	errSetURL := ref.stg.SetURL(setURLData)
+	_, errSetURL := ref.stg.SetURL(setURLData)
 	if errSetURL != nil {
 		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -162,7 +162,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(aaa)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	errSetURL := ref.stg.SetURL(setURLData)
+	_, errSetURL := ref.stg.SetURL(setURLData)
 	if errSetURL != nil {
 		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -315,7 +315,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	bbb := ref.generateShortenedURL(batchAPIRq)
 	setURLData := ConvertBbbRsToSetURLData(bbb)
 
-	errSetURL := ref.stg.SetURL(setURLData)
+	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	if errSetURL != nil {
 		ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -330,7 +330,30 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		batchAPIRs = append(batchAPIRs, resultItem)
 	}
 
-	////////////////////////////
+	if len(existingRecords) > 0 {
+		// If there are existing records, return 409 Conflict and the existing short URLs
+		conflictResponses := make([]ShortURLItem, len(existingRecords))
+		for i, record := range existingRecords {
+			conflictResponses[i] = ShortURLItem{
+				CorrelationId: "record.CorrelationId",
+				ShortURL:      record.Hash,
+			}
+		}
+		resp, err := json.Marshal(conflictResponses)
+		if err != nil {
+			ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		if _, err := w.Write(resp); err != nil {
+			ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		return
+	}
+
 	resp, err := json.Marshal(batchAPIRs)
 	if err != nil {
 		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))

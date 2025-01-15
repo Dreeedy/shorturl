@@ -13,7 +13,7 @@ import (
 )
 
 type Storage interface {
-	SetURL(data common.SetURLData) error
+	SetURL(data common.SetURLData) (common.SetURLData, error)
 	GetURL(shortURL string) (string, bool)
 }
 
@@ -46,7 +46,8 @@ func (ref *StorageFactory) CreateStorage() (Storage, string, error) {
 	case "file":
 		return filestorage.NewFilestorage(ref.cfg, ref.log), storageType, nil
 	case "db":
-		return dbstorage.NewDBStorage(ref.cfg, ref.log), storageType, nil
+		aaa, _ := dbstorage.NewDBStorage(ref.cfg, ref.log)
+		return aaa, storageType, nil
 	default:
 		return nil, storageType, fmt.Errorf("unknown storage type: %s", storageType)
 	}
