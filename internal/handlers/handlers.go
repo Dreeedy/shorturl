@@ -162,14 +162,10 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
 
 			// If there are existing records, return 409 Conflict and the existing short URLs
-			conflictResponses := make([]ShortURLItem, len(existingRecords))
-			for i, record := range existingRecords {
-				conflictResponses[i] = ShortURLItem{
-					CorrelationId: record.CorrelationId,
-					ShortURL:      record.Hash,
-				}
+			conflictResponse := ShortenAPIRs{
+				Result: existingRecords[0].ShortURL,
 			}
-			resp, err := json.Marshal(conflictResponses)
+			resp, err := json.Marshal(conflictResponse)
 			if err != nil {
 				ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
