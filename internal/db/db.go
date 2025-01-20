@@ -8,24 +8,48 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitDB(cfg config.Config, newLogger *zap.Logger) error {
+type DB struct {
+	cfg  config.Config
+	log  *zap.Logger
+	pool *pgx.ConnPool
+}
+
+const (
+	maxConnections = 10
+)
+
+func NewDB(newConfig config.Config, newLogger *zap.Logger) (*DB, error) {
 	// Parse the connection string
-	newLogger.Info("DBConnectionAdress", zap.String("DBConnectionAdress", cfg.GetConfig().DBConnectionAdress))
-	connConfig, err := pgx.ParseConnectionString(cfg.GetConfig().DBConnectionAdress)
+	DBConnectionAdress := newConfig.GetConfig().DBConnectionAdress
+	newLogger.Info("DBConnectionAdress", zap.String("DBConnectionAdress", DBConnectionAdress))
+	newConnConfig, err := pgx.ParseConnectionString(DBConnectionAdress)
 	if err != nil {
 		newLogger.Error("Failed to parse connection string", zap.Error(err))
-		return fmt.Errorf("failed to parse connection string: %w", err)
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	// Establish the connection
-	conn, err := pgx.Connect(connConfig)
+	poolConfig := pgx.ConnPoolConfig{
+		ConnConfig:     newConnConfig,
+		MaxConnections: maxConnections,
+	}
+
+	// Create a connection pool
+	newConnPool, err := pgx.NewConnPool(poolConfig)
 	if err != nil {
-		newLogger.Error("Failed to connect to remote database", zap.Error(err))
-		return fmt.Errorf("failed to connect to remote database: %w", err)
+		newLogger.Error("Failed to create connection pool", zap.Error(err))
+		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
-	newLogger.Info("Connection to remote database successfully established")
+	var newDB = &DB{
+		cfg:  newConfig,
+		log:  newLogger,
+		pool: newConnPool,
+	}
 
+	return newDB, nil
+}
+
+func (ref *DB) InitDB() error {
 	createTableQuery := `
 	CREATE TABLE IF NOT EXISTS url_mapping (
 	uuid UUID PRIMARY KEY,
@@ -36,11 +60,15 @@ func InitDB(cfg config.Config, newLogger *zap.Logger) error {
 	short_url VARCHAR(255) NOT NULL
 	);`
 
-	_, err = conn.Exec(createTableQuery)
+	_, err := ref.pool.Exec(createTableQuery)
 	if err != nil {
-		newLogger.Error("Failed Exec sql", zap.Error(err))
+		ref.log.Error("Failed Exec sql", zap.Error(err))
 		return fmt.Errorf("failed to execute SQL: %w", err)
 	}
 
 	return nil
+}
+
+func (ref *DB) GetConnPool() *pgx.ConnPool {
+	return ref.pool
 }

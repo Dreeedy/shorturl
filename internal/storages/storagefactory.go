@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/db"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
@@ -20,12 +21,14 @@ type Storage interface {
 type StorageFactory struct {
 	cfg config.Config
 	log *zap.Logger
+	db  *db.DB
 }
 
-func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger) *StorageFactory {
+func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *StorageFactory {
 	return &StorageFactory{
 		cfg: newConfig,
 		log: newLogger,
+		db:  newDB,
 	}
 }
 
@@ -46,8 +49,8 @@ func (ref *StorageFactory) CreateStorage() (Storage, string, error) {
 	case "file":
 		return filestorage.NewFilestorage(ref.cfg, ref.log), storageType, nil
 	case "db":
-		aaa, _ := dbstorage.NewDBStorage(ref.cfg, ref.log)
-		return aaa, storageType, nil
+		newDBStorage := dbstorage.NewDBStorage(ref.cfg, ref.log, ref.db)
+		return newDBStorage, storageType, nil
 	default:
 		return nil, storageType, fmt.Errorf("unknown storage type: %s", storageType)
 	}

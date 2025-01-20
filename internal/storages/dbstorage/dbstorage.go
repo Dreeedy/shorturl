@@ -7,53 +7,36 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/apperrors"
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/db"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 )
 
 const (
-	maxConnections = 10
-	maxArgCount    = 6
-	argIDOffset1   = 1
-	argIDOffset2   = 2
-	argIDOffset3   = 3
-	argIDOffset4   = 4
-	argIDOffset5   = 5
-	argIDOffset6   = 6
+	maxArgCount  = 6
+	argIDOffset1 = 1
+	argIDOffset2 = 2
+	argIDOffset3 = 3
+	argIDOffset4 = 4
+	argIDOffset5 = 5
+	argIDOffset6 = 6
 )
 
 type DBStorage struct {
-	pool *pgx.ConnPool
-	log  *zap.Logger
+	db  *db.DB
+	log *zap.Logger
 }
 
-func NewDBStorage(newConfig config.Config, newLogger *zap.Logger) (*DBStorage, error) {
-	cfg, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
-	if err != nil {
-		newLogger.Error("Failed to parse connection string", zap.Error(err))
-		return nil, fmt.Errorf("failed to parse connection string: %w", err)
-	}
-
-	poolConfig := pgx.ConnPoolConfig{
-		ConnConfig:     cfg,
-		MaxConnections: maxConnections,
-	}
-
-	pool, err := pgx.NewConnPool(poolConfig)
-	if err != nil {
-		newLogger.Error("Failed to create connection pool", zap.Error(err))
-		return nil, fmt.Errorf("failed to create connection pool: %w", err)
-	}
-
+func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *DBStorage {
 	return &DBStorage{
-		pool: pool,
-		log:  newLogger,
-	}, nil
+		db:  newDB,
+		log: newLogger,
+	}
 }
 
 func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
-	tx, err := ref.pool.Begin()
+	tx, err := ref.db.GetConnPool().Begin()
 	if err != nil {
 		ref.log.Error("Failed to begin transaction", zap.Error(err))
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -138,7 +121,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
 	var originalURL string
 	query := `SELECT original_url FROM url_mapping WHERE hash = $1`
-	errQueryRow := ref.pool.QueryRow(query, shortURL).Scan(&originalURL)
+	errQueryRow := ref.db.GetConnPool().QueryRow(query, shortURL).Scan(&originalURL)
 	if errors.Is(errQueryRow, pgx.ErrNoRows) {
 		return "", false
 	} else if errQueryRow != nil {

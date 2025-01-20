@@ -19,17 +19,34 @@ import (
 func main() {
 	newConfig := config.NewConfig()
 	httpConfig := newConfig.GetConfig()
+
 	newZapLogger, zaploggerzErr := zaplogger.NewZapLogger(newConfig)
 	if zaploggerzErr != nil {
 		log.Fatal("zaplogger init failed:", zaploggerzErr)
 	}
-	newStorageFactory := storages.NewStorageFactory(newConfig, newZapLogger)
+
+	newDB, errnewDB := db.NewDB(newConfig, newZapLogger)
+	if errnewDB != nil {
+		log.Fatal("newDB init failed:", errnewDB)
+	}
+
+	newStorageFactory := storages.NewStorageFactory(newConfig, newZapLogger, newDB)
 	newStorage, storageType, newStoragezErr := newStorageFactory.CreateStorage()
 	if newStoragezErr != nil {
 		log.Fatal("newStorage init failed:", newStoragezErr)
 	}
+
+	if storageType == "db" {
+		err := newDB.InitDB()
+		if err != nil {
+			log.Fatal("InitDB failed:", err)
+		}
+	}
+
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger)
+
 	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
+
 	newGzipMiddleware := gzip.NewGzipMiddleware()
 
 	router := chi.NewRouter()
@@ -43,13 +60,6 @@ func main() {
 	router.Post("/api/shorten/batch", newHandlerHTTP.Batch)
 	router.Get("/ping", newHandlerHTTP.Ping)
 
-	if storageType == "db" {
-		initDBErr := db.InitDB(newConfig, newZapLogger)
-		if initDBErr != nil {
-			log.Fatal("initDB failed:", initDBErr)
-		}
-	}
-
 	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
 	newZapLogger.Info("Base URL for shortened URLs: %s\n", zap.String("BaseURL", httpConfig.BaseURL))
 
@@ -57,4 +67,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Server failed:", err)
 	}
+
+	defer newDB.GetConnPool().Close()
 }
