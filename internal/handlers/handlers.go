@@ -149,15 +149,9 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	originalURL := strings.TrimSpace(shortenAPIRq.URL)
-	if originalURL == "" {
-		http.Error(w, urlIsEmpty, http.StatusBadRequest)
-		return
-	}
-
 	// Convert
 	batchAPIRq := BatchAPIRq{
-		{OriginalURL: originalURL},
+		{OriginalURL: shortenAPIRq.URL},
 	}
 	setURLData := ref.generateShortenedURL(batchAPIRq)
 
@@ -296,14 +290,6 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
-
-	for _, item := range batchAPIRq {
-		originalURL := strings.TrimSpace(item.OriginalURL)
-		if originalURL == "" {
-			http.Error(w, urlIsEmpty, http.StatusBadRequest)
-			return
-		}
-	}
 
 	initialCapacity := len(batchAPIRq)
 	var batchAPIRs = make(BatchAPIRs, 0, initialCapacity)

@@ -236,15 +236,6 @@ func TestShorten(t *testing.T) {
 			},
 		},
 		{
-			name: "empty URL",
-			body: `{"url": ""}`,
-			want: want{
-				code:        400,
-				response:    "URL is empty\n",
-				contentType: "text/plain; charset=utf-8",
-			},
-		},
-		{
 			name: "invalid JSON",
 			body: `{"url": "https://practicum.yandex.ru"`, // Missing closing brace.
 			want: want{
@@ -335,17 +326,6 @@ func TestBatch(t *testing.T) {
 				response: `[{"correlation_id":"1","short_url":"http://localhost:8080/"}` +
 					`,{"correlation_id":"2","short_url":"http://localhost:8080/"}]`,
 				contentType: "application/json",
-			},
-		},
-		{
-			name: "empty URL in batch",
-			body: `[
-				{"correlation_id": "1", "original_url": ""}
-			]`,
-			want: want{
-				code:        400,
-				response:    "URL is empty\n",
-				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
