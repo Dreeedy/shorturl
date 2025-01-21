@@ -144,14 +144,14 @@ func Ping(newConfig config.Config, newLogger *zap.Logger) error {
 	connConfig, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
 	if err != nil {
 		newLogger.Error("Failed to parse connection string", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
 	// Establish the connection
 	conn, err := pgx.Connect(connConfig)
 	if err != nil {
 		newLogger.Error("Failed to connect to remote database", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to connect to remote database: %w", err)
 	}
 	defer func() {
 		if conn != nil {
@@ -166,7 +166,7 @@ func Ping(newConfig config.Config, newLogger *zap.Logger) error {
 	// Ping the database to ensure the connection is alive
 	if err := conn.Ping(context.Background()); err != nil {
 		newLogger.Error("Failed to ping the database", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to ping the database: %w", err)
 	}
 
 	return nil
