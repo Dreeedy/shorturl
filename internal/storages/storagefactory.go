@@ -32,8 +32,22 @@ func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger, newDB *db
 	}
 }
 
-func (ref *StorageFactory) CreateStorage() (Storage, string, error) {
-	cfg := ref.cfg.GetConfig()
+func (ref *StorageFactory) CreateStorage(storageType string) (Storage, error) {
+	switch storageType {
+	case "ram":
+		return ramstorage.NewRAMStorage(), nil
+	case "file":
+		return filestorage.NewFilestorage(ref.cfg, ref.log), nil
+	case "db":
+		newDBStorage := dbstorage.NewDBStorage(ref.cfg, ref.log, ref.db)
+		return newDBStorage, nil
+	default:
+		return nil, fmt.Errorf("unknown storage type: %s", storageType)
+	}
+}
+
+func GetStorageType(newConfig config.Config, newLogger *zap.Logger) string {
+	cfg := newConfig.GetConfig()
 
 	storageType := cfg.StorageType
 
@@ -41,17 +55,7 @@ func (ref *StorageFactory) CreateStorage() (Storage, string, error) {
 		storageType = "db"
 	}
 
-	ref.log.Info("Selected storage type", zap.String("storageType", storageType))
+	newLogger.Info("Selected storage type", zap.String("storageType", storageType))
 
-	switch storageType {
-	case "ram":
-		return ramstorage.NewRAMStorage(), storageType, nil
-	case "file":
-		return filestorage.NewFilestorage(ref.cfg, ref.log), storageType, nil
-	case "db":
-		newDBStorage := dbstorage.NewDBStorage(ref.cfg, ref.log, ref.db)
-		return newDBStorage, storageType, nil
-	default:
-		return nil, storageType, fmt.Errorf("unknown storage type: %s", storageType)
-	}
+	return storageType
 }

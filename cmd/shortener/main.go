@@ -25,13 +25,18 @@ func main() {
 		log.Fatal("zaplogger init failed:", zaploggerzErr)
 	}
 
-	newDB, errnewDB := db.NewDB(newConfig, newZapLogger)
-	if errnewDB != nil {
-		log.Fatal("newDB init failed:", errnewDB)
+	var newDB *db.DB
+	var errnewDB error
+	storageType := storages.GetStorageType(newConfig, newZapLogger)
+	if storageType == "db" {
+		newDB, errnewDB = db.NewDB(newConfig, newZapLogger)
+		if errnewDB != nil {
+			log.Fatal("newDB init failed:", errnewDB)
+		}
 	}
 
 	newStorageFactory := storages.NewStorageFactory(newConfig, newZapLogger, newDB)
-	newStorage, storageType, newStoragezErr := newStorageFactory.CreateStorage()
+	newStorage, newStoragezErr := newStorageFactory.CreateStorage(storageType)
 	if newStoragezErr != nil {
 		log.Fatal("newStorage init failed:", newStoragezErr)
 	}
