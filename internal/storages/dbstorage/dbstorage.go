@@ -124,13 +124,16 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
 	var originalURL string
 	query := `SELECT original_url FROM url_mapping WHERE hash = $1`
+
 	errQueryRow := ref.db.GetConnPool().QueryRow(query, shortURL).Scan(&originalURL)
-	if errors.Is(errQueryRow, pgx.ErrNoRows) {
-		return "", false
-	} else if errQueryRow != nil {
+	if errQueryRow != nil {
+		if errors.Is(errQueryRow, pgx.ErrNoRows) {
+			return "", false
+		}
 		ref.log.Error("Failed to retrieve URL", zap.Error(errQueryRow))
 		return "", false
 	}
+
 	return originalURL, true
 }
 
