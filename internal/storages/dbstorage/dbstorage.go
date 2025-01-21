@@ -1,6 +1,7 @@
 package dbstorage
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,12 +27,14 @@ const (
 type DBStorage struct {
 	db  *db.DB
 	log *zap.Logger
+	cfg config.Config
 }
 
 func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *DBStorage {
 	return &DBStorage{
 		db:  newDB,
 		log: newLogger,
+		cfg: newConfig,
 	}
 }
 
@@ -129,4 +132,39 @@ func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
 		return "", false
 	}
 	return originalURL, true
+}
+
+func Ping(newConfig config.Config, newLogger *zap.Logger) error {
+	newLogger.Info("DBConnectionAdress", zap.String("DBConnectionAdress", newConfig.GetConfig().DBConnectionAdress))
+
+	// Parse the connection string
+	connConfig, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
+	if err != nil {
+		newLogger.Error("Failed to parse connection string", zap.Error(err))
+		return err
+	}
+
+	// Establish the connection
+	conn, err := pgx.Connect(connConfig)
+	if err != nil {
+		newLogger.Error("Failed to connect to remote database", zap.Error(err))
+		return err
+	}
+	defer func() {
+		if conn != nil {
+			if err := conn.Close(); err != nil {
+				newLogger.Error("Failed to close connection to remote database", zap.Error(err))
+			}
+		}
+	}()
+
+	newLogger.Info("Connection to remote database successfully established")
+
+	// Ping the database to ensure the connection is alive
+	if err := conn.Ping(context.Background()); err != nil {
+		newLogger.Error("Failed to ping the database", zap.Error(err))
+		return err
+	}
+
+	return nil
 }

@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -16,9 +15,9 @@ import (
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
+	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx"
 	"go.uber.org/zap"
 )
 
@@ -269,37 +268,9 @@ func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	ref.log.Info("DBConnectionAdress", zap.String("DBConnectionAdress", ref.cfg.GetConfig().DBConnectionAdress))
-
-	// Parse the connection string
-	connConfig, err := pgx.ParseConnectionString(ref.cfg.GetConfig().DBConnectionAdress)
+	err := dbstorage.Ping(ref.cfg, ref.log)
 	if err != nil {
-		ref.log.Error("Failed to parse connection string", zap.Error(err))
-		http.Error(w, "Failed to parse connection string", http.StatusInternalServerError)
-		return
-	}
-
-	// Establish the connection
-	conn, err := pgx.Connect(connConfig)
-	if err != nil {
-		ref.log.Error("Failed to connect to remote database", zap.Error(err))
-		http.Error(w, "Failed to connect to remote database", http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		if conn != nil {
-			if err := conn.Close(); err != nil {
-				ref.log.Error("Failed to close connection to remote database", zap.Error(err))
-			}
-		}
-	}()
-
-	ref.log.Info("Connection to remote database successfully established")
-
-	// Ping the database to ensure the connection is alive
-	if err := conn.Ping(context.Background()); err != nil {
-		ref.log.Error("Failed to ping the database", zap.Error(err))
-		http.Error(w, "Failed to ping the database", http.StatusInternalServerError)
+		ref.log.Error("Failed Ping remote database", zap.Error(err))
 		return
 	}
 
