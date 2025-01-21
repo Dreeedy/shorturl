@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/apperrors"
@@ -104,7 +105,8 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
+			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+				zap.String(errorKey, errInsertConflict.Message))
 
 			w.Header().Set(contentType, contentTypeApplicationJSON)
 			w.WriteHeader(http.StatusConflict)
@@ -164,7 +166,8 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
+			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+				zap.String(errorKey, errInsertConflict.Message))
 
 			// If there are existing records, return 409 Conflict and the existing short URLs
 			conflictResponse := ShortenAPIRs{
@@ -341,7 +344,8 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			fmt.Printf("Error Code: %d, Message: %s\n", errInsertConflict.Code, errInsertConflict.Message)
+			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+				zap.String(errorKey, errInsertConflict.Message))
 
 			conflictResponses := make([]ShortURLItem, len(existingRecords))
 			for i, record := range existingRecords {
