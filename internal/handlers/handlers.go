@@ -4,39 +4,43 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/Dreeedy/shorturl/internal/apperrors"
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/storages"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
+	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 const (
-	errorKey           = "err"
-	unableToReadRqBody = "Unable to read request body"
+	errorKey                   = "err"
+	unableToReadRqBody         = "Unable to read request body"
+	contentType                = "Content-Type"
+	contentTypeApplicationJSON = "application/json"
+	invalidReqMethod           = "Invalid request method"
+	urlIsEmpty                 = "URL is empty"
+	unableToWriteResp          = "Unable to write response"
+	unableToMarshalResp        = "Unable to marshal response"
+	unableToCloseRqBody        = "Unable to close request body"
 )
 
-type Handler interface {
-	ShortenedURL(w http.ResponseWriter, req *http.Request)
-	OriginalURL(w http.ResponseWriter, req *http.Request)
-	Shorten(w http.ResponseWriter, req *http.Request)
-	generateShortenedURL(originalURL string) (string, error)
-	generateRandomHash() string
-}
-
-type handlerHTTP struct {
+type HandlerHTTP struct {
 	cfg config.Config
 	stg storages.Storage
 	log *zap.Logger
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *handlerHTTP {
-	return &handlerHTTP{
+func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *HandlerHTTP {
+	return &HandlerHTTP{
 		cfg: newConfig,
 		stg: newStorage,
 		log: newLogger,
@@ -51,9 +55,23 @@ type ShortenAPIRs struct {
 	Result string `json:"result"`
 }
 
-func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
+type BatchAPIRq []OriginalURLItem
+
+type OriginalURLItem struct {
+	CorrelationID string `json:"correlation_id"`
+	OriginalURL   string `json:"original_url"`
+}
+
+type BatchAPIRs []ShortURLItem
+
+type ShortURLItem struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
+
+func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -65,35 +83,55 @@ func (ref *handlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
 	originalURL := strings.TrimSpace(string(body))
 	if originalURL == "" {
-		http.Error(w, "URL is empty", http.StatusBadRequest)
+		http.Error(w, urlIsEmpty, http.StatusBadRequest)
 		return
 	}
 
-	shortenedURL, err := ref.generateShortenedURL(originalURL)
-	if err != nil {
-		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+	// Convert
+	batchAPIRq := BatchAPIRq{
+		{OriginalURL: originalURL},
+	}
+	setURLData := ref.generateShortenedURL(batchAPIRq)
+
+	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
+	var errInsertConflict *apperrors.InsertConflictError
+	if errSetURL != nil {
+		if errors.As(errSetURL, &errInsertConflict) {
+			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+				zap.String(errorKey, errInsertConflict.Message))
+
+			w.Header().Set(contentType, contentTypeApplicationJSON)
+			w.WriteHeader(http.StatusConflict)
+			if _, err := w.Write([]byte(existingRecords[0].ShortURL)); err != nil {
+				ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+			return
+		} else {
+			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 	}
 
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set(contentType, "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	if _, err := w.Write([]byte(shortenedURL)); err != nil {
-		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+	if _, err := w.Write([]byte(setURLData[0].ShortURL)); err != nil {
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
-func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
+func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
@@ -106,71 +144,90 @@ func (ref *handlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 	defer func() {
 		if err := req.Body.Close(); err != nil {
-			ref.log.Error("Unable to close request body", zap.String(errorKey, err.Error()))
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 	}()
 
-	originalURL := strings.TrimSpace(shortenAPIRq.URL)
-	if originalURL == "" {
-		http.Error(w, "URL is empty", http.StatusBadRequest)
-		return
+	// Convert
+	batchAPIRq := BatchAPIRq{
+		{OriginalURL: shortenAPIRq.URL},
 	}
+	setURLData := ref.generateShortenedURL(batchAPIRq)
 
-	shortenedURL, err := ref.generateShortenedURL(originalURL)
-	if err != nil {
-		ref.log.Error("Internal Server Error", zap.String(errorKey, err.Error()))
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		return
+	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
+	var errInsertConflict *apperrors.InsertConflictError
+	if errSetURL != nil {
+		if errors.As(errSetURL, &errInsertConflict) {
+			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+				zap.String(errorKey, errInsertConflict.Message))
+
+			// If there are existing records, return 409 Conflict and the existing short URLs
+			conflictResponse := ShortenAPIRs{
+				Result: existingRecords[0].ShortURL,
+			}
+			resp, err := json.Marshal(conflictResponse)
+			if err != nil {
+				ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set(contentType, contentTypeApplicationJSON)
+			w.WriteHeader(http.StatusConflict)
+			if _, err := w.Write(resp); err != nil {
+				ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+			return
+		} else {
+			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	shortenAPIRs := ShortenAPIRs{
-		Result: shortenedURL,
+		Result: setURLData[0].ShortURL,
 	}
 
 	resp, err := json.Marshal(shortenAPIRs)
 	if err != nil {
-		ref.log.Error("Unable to marshal response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentType, contentTypeApplicationJSON)
 	w.WriteHeader(http.StatusCreated)
 	if _, err := w.Write(resp); err != nil {
-		ref.log.Error("Unable to write response", zap.String(errorKey, err.Error()))
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 }
 
-func (ref *handlerHTTP) generateShortenedURL(originalURL string) (string, error) {
-	const maxAttempts int = 10
-	var attempts = 0
-	var hash string
-
-	for range [maxAttempts]struct{}{} {
-		hash = ref.generateRandomHash()
-
-		if err := ref.stg.SetURL(uuid.NewString(), hash, originalURL); err == nil {
-			break
-		}
-
-		attempts++
-	}
-
-	if attempts >= maxAttempts {
-		return "", fmt.Errorf("failed to generate unique hash after %d attempts", attempts)
-	}
-
+func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.URLData {
+	var result common.URLData
 	cfg := ref.cfg.GetConfig()
 
-	parts := []string{cfg.BaseURL, "/", hash}
-	shortenedURL := strings.Join(parts, "")
+	for _, item := range data {
+		var hash = ref.generateRandomHash()
+		shortenedURL := fmt.Sprintf("%s/%s", cfg.BaseURL, hash)
 
-	return shortenedURL, nil
+		resultItem := common.URLItem{
+			UUID:          uuid.NewString(),
+			Hash:          hash,
+			OriginalURL:   item.OriginalURL,
+			OperationType: "INSERT",
+			CorrelationID: item.CorrelationID,
+			ShortURL:      shortenedURL,
+		}
+		result = append(result, resultItem)
+	}
+
+	return result
 }
 
-func (ref *handlerHTTP) generateRandomHash() string {
+func (ref *HandlerHTTP) generateRandomHash() string {
 	const size int = 4
 
 	b := make([]byte, size)
@@ -180,15 +237,15 @@ func (ref *handlerHTTP) generateRandomHash() string {
 	return hex.EncodeToString(b)
 }
 
-func (ref *handlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
+func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
-		http.Error(w, "Invalid request method", http.StatusBadRequest)
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
 
-	id := chi.URLParam(req, "id")
+	shortURL := chi.URLParam(req, "id")
 
-	originalURL, found := ref.stg.GetURL(id)
+	originalURL, found := ref.stg.GetURL(shortURL)
 
 	if !found {
 		http.Error(w, "URL not found", http.StatusBadRequest)
@@ -197,4 +254,105 @@ func (ref *handlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Location", originalURL)
 	w.WriteHeader(http.StatusTemporaryRedirect)
+}
+
+func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
+		return
+	}
+
+	err := dbstorage.Ping(ref.cfg, ref.log)
+	if err != nil {
+		ref.log.Error("Failed Ping remote database", zap.Error(err))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodPost {
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
+		return
+	}
+
+	var batchAPIRq BatchAPIRq
+
+	if err := json.NewDecoder(req.Body).Decode(&batchAPIRq); err != nil {
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+	}()
+
+	initialCapacity := len(batchAPIRq)
+	var batchAPIRs = make(BatchAPIRs, 0, initialCapacity)
+
+	// Convert
+	setURLData := ref.generateShortenedURL(batchAPIRq)
+
+	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
+	var errInsertConflict *apperrors.InsertConflictError
+	if errSetURL != nil {
+		if errors.As(errSetURL, &errInsertConflict) {
+			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+				zap.String(errorKey, errInsertConflict.Message))
+
+			conflictResponses := make([]ShortURLItem, len(existingRecords))
+			for i, record := range existingRecords {
+				conflictResponses[i] = ShortURLItem{
+					CorrelationID: record.CorrelationID,
+					ShortURL:      record.Hash,
+				}
+			}
+			resp, err := json.Marshal(conflictResponses)
+			if err != nil {
+				ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set(contentType, contentTypeApplicationJSON)
+			w.WriteHeader(http.StatusConflict)
+			if _, err := w.Write(resp); err != nil {
+				ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			}
+			return
+		} else {
+			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	for _, item := range setURLData {
+		resultItem := ShortURLItem{
+			CorrelationID: item.CorrelationID,
+			ShortURL:      item.ShortURL,
+		}
+		batchAPIRs = append(batchAPIRs, resultItem)
+	}
+
+	ref.log.Sugar().Infow("Batch.batchAPIRs", "batchAPIRs", batchAPIRs)
+	ref.log.Sugar().Infow("Batch.existingRecords", "existingRecords", existingRecords)
+
+	resp, err := json.Marshal(batchAPIRs)
+	if err != nil {
+		ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(contentType, contentTypeApplicationJSON)
+	w.WriteHeader(http.StatusCreated)
+	if _, err := w.Write(resp); err != nil {
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
 }

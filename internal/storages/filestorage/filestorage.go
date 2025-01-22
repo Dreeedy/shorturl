@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/ramstorage"
 	"go.uber.org/zap"
 )
@@ -18,7 +19,7 @@ const (
 	errorKey       = "err"
 )
 
-type filestorage struct {
+type Filestorage struct {
 	ramStorage *ramstorage.RAMStorage
 	urlMapMux  *sync.Mutex
 	cfg        config.Config
@@ -31,8 +32,8 @@ type URLData struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *filestorage {
-	newFilestorage := filestorage{
+func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *Filestorage {
+	newFilestorage := Filestorage{
 		ramStorage: ramstorage.NewRAMStorage(),
 		urlMapMux:  &sync.Mutex{},
 		cfg:        newConfig,
@@ -47,23 +48,29 @@ func NewFilestorage(newConfig config.Config, newLogger *zap.Logger) *filestorage
 }
 
 // SetURL sets a new URL in the storage.
-func (ref *filestorage) SetURL(uuid, shortURL, originalURL string) error {
+func (ref *Filestorage) SetURL(data common.URLData) (common.URLData, error) {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
-	if err := ref.ramStorage.SetURL(uuid, shortURL, originalURL); err != nil {
-		return fmt.Errorf("failed to set URL in memory store: %w", err)
+	if _, err := ref.ramStorage.SetURL(data); err != nil {
+		return nil, fmt.Errorf("failed to set URL in memory store: %w", err)
 	}
 
-	return ref.AppendToFile(URLData{
-		UUID:        uuid,
-		ShortURL:    shortURL,
-		OriginalURL: originalURL,
-	})
+	for _, item := range data {
+		if err := ref.AppendToFile(URLData{
+			UUID:        item.UUID,
+			ShortURL:    item.Hash,
+			OriginalURL: item.OriginalURL,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to append URL to file: %w", err)
+		}
+	}
+
+	return nil, nil
 }
 
 // GetURL retrieves the original URL for a given short URL.
-func (ref *filestorage) GetURL(shortURL string) (string, bool) {
+func (ref *Filestorage) GetURL(shortURL string) (string, bool) {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
@@ -71,7 +78,7 @@ func (ref *filestorage) GetURL(shortURL string) (string, bool) {
 }
 
 // LoadFromFile loads URL data from the file.
-func (ref *filestorage) LoadFromFile() error {
+func (ref *Filestorage) LoadFromFile() error {
 	ref.urlMapMux.Lock()
 	defer ref.urlMapMux.Unlock()
 
@@ -96,7 +103,14 @@ func (ref *filestorage) LoadFromFile() error {
 			}
 			return fmt.Errorf("json.Decoder.Decode: %w", err)
 		}
-		if err := ref.ramStorage.SetURL(data.UUID, data.ShortURL, data.OriginalURL); err != nil {
+		var setURLData common.URLData
+		item := common.URLItem{
+			UUID:        data.UUID,
+			Hash:        data.ShortURL,
+			OriginalURL: data.OriginalURL,
+		}
+		setURLData = append(setURLData, item)
+		if _, err := ref.ramStorage.SetURL(setURLData); err != nil {
 			return fmt.Errorf("failed to set URL in memory store: %w", err)
 		}
 	}
@@ -105,7 +119,7 @@ func (ref *filestorage) LoadFromFile() error {
 }
 
 // AppendToFile appends URL data to the file.
-func (ref *filestorage) AppendToFile(data URLData) error {
+func (ref *Filestorage) AppendToFile(data URLData) error {
 	file, err := os.OpenFile(ref.cfg.GetConfig().FileStoragePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, filePermission)
 	if err != nil {
 		return fmt.Errorf("os.OpenFile: %w", err)

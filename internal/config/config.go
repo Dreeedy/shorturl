@@ -11,11 +11,12 @@ type Config interface {
 
 // HTTPConfig structure for storing the configuration.
 type HTTPConfig struct {
-	RunAddr         string
-	BaseURL         string
-	FlagLogLevel    string
-	StorageType     string
-	FileStoragePath string
+	RunAddr            string
+	BaseURL            string
+	FlagLogLevel       string
+	StorageType        string
+	FileStoragePath    string
+	DBConnectionAdress string
 }
 
 func NewConfig() Config {
@@ -27,6 +28,9 @@ func NewConfig() Config {
 	flag.StringVar(&config.StorageType, "t", "file", "storage type")
 	flag.StringVar(&config.FileStoragePath, "f", "default_filestorage.json",
 		"path to the file where data in JSON format is saved")
+	flag.StringVar(&config.DBConnectionAdress, "d",
+		"",
+		"string with the database connection address")
 	flag.Parse()
 
 	// Override values from environment variables if they are set.
@@ -44,6 +48,9 @@ func NewConfig() Config {
 	}
 	if fileStoragePath, ok := os.LookupEnv("FILE_STORAGE_PATH"); ok && fileStoragePath != "" {
 		config.FileStoragePath = fileStoragePath
+	}
+	if databaseConnectionAdress, ok := os.LookupEnv("DATABASE_DSN"); ok && databaseConnectionAdress != "" {
+		config.DBConnectionAdress = databaseConnectionAdress
 	}
 
 	return config

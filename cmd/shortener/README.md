@@ -15,7 +15,10 @@ go vet ./...
 go vet -structtag ./...
 
 gzip -c data.json > data.json.gz
+dre_go@izmailov-pc:~$ cd /mnt/f/shorturl_binary
+dre_go@izmailov-pc:/mnt/f/shorturl_binary$ gzip raw_batch_data.json
 -- Создает сжатый архив правильного формата. Далее заливаем в постман.
+
 ## Тестирование
 
 Для выполнения всех тестов в проекте используйте следующую команду:
@@ -28,6 +31,9 @@ go build -o shortener
 В данной директории будет содержаться код, который скомпилируется в бинарное приложение:
 cmd\shortener\
 
+Пример установки пакета
+go get github.com/jmoiron/sqlx
+
 ## Запуск приложения
 
 ### С переменными окружения
@@ -37,10 +43,14 @@ cmd\shortener\
 ### С флагами командной строки
 Запустите приложение с флагами командной строки:
 ./shortener -a :8888 -b http://localhost:8888
+go run main.go -d "user=postgres dbname=mydb sslmode=disable password=111 host=localhost port=5432"
 
 ### С переменными окружения и флагами командной строки
 Установите переменные окружения и запустите приложение с флагами командной строки (переменные окружения имеют приоритет):
 \$env\:SERVER_ADDRESS=":8081"; \$env\:BASE_URL="http://localhost:8081"; ./shortener -a :8888 -b http://localhost:8888
+
+Default local DBConnectionAdress:
+"user=postgres dbname=mydb sslmode=disable password=111 host=localhost port=5432"
 
 ## Работа с моками
 

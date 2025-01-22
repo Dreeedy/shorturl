@@ -1,8 +1,10 @@
 package ramstorage
 
 import (
-	"errors"
+	"fmt"
 	"sync"
+
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 )
 
 // RAMStorage is a structure for storing URLs and a mutex.
@@ -20,22 +22,25 @@ func NewRAMStorage() *RAMStorage {
 }
 
 // SetURL saves a URL in the storage.
-func (s *RAMStorage) SetURL(uuid, shortURL, originalURL string) error {
+func (s *RAMStorage) SetURL(data common.URLData) (common.URLData, error) {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
 
-	if _, exists := s.urlMap[shortURL]; exists {
-		return errors.New("hash already exists")
+	for _, item := range data {
+		if _, exists := s.urlMap[item.Hash]; exists {
+			return nil, fmt.Errorf("hash already exists for shortURL: %s", item.Hash)
+		}
+		s.urlMap[item.Hash] = item.OriginalURL
 	}
 
-	s.urlMap[shortURL] = originalURL
-	return nil
+	return nil, nil
 }
 
 // GetURL retrieves a URL from the storage.
 func (s *RAMStorage) GetURL(shortURL string) (string, bool) {
 	s.urlMapMux.Lock()
 	defer s.urlMapMux.Unlock()
+
 	originalURL, ok := s.urlMap[shortURL]
 	return originalURL, ok
 }
