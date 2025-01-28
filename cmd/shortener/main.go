@@ -58,10 +58,10 @@ func main() {
 	newAuthMiddleware := auth.NewAuthMiddleware(newConfig, newZapLogger, newUsertService)
 
 	router := chi.NewRouter()
+	router.Use(newAuthMiddleware.Work)
 	router.Use(middleware.Logger)
 	router.Use(newGzipMiddleware.CompressionHandler)
 	router.Use(newHTTPLoggerMiddleware.RqRsLogger)
-	router.Use(newAuthMiddleware.Work)
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)

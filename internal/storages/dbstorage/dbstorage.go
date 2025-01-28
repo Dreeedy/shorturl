@@ -80,7 +80,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	}
 
 	query += `
-        ON CONFLICT (original_url) DO UPDATE
+        ON CONFLICT (original_url, user_id) DO UPDATE
         SET original_url = EXCLUDED.original_url, last_operation_type = 'UPDATE'
         RETURNING *;`
 

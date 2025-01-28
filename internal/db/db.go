@@ -64,7 +64,8 @@ func (ref *DB) InitDB() error {
 		last_operation_type VARCHAR(255) NOT NULL,
 		correlation_id VARCHAR(255) NULL,
 		short_url VARCHAR(255) NOT NULL,
-		user_id INTEGER REFERENCES usert(user_id)
+		user_id INTEGER REFERENCES usert(user_id),
+		UNIQUE (original_url, user_id)
 	);`
 
 	_, err := ref.pool.Exec(createUsertTableQuery)
