@@ -50,25 +50,37 @@ func NewDB(newConfig config.Config, newLogger *zap.Logger) (*DB, error) {
 }
 
 func (ref *DB) InitDB() error {
-	createTableQuery := `
-	CREATE TABLE IF NOT EXISTS url_mapping (
-	uuid UUID PRIMARY KEY,
-	hash VARCHAR(255) NOT NULL,
-	original_url TEXT NOT NULL UNIQUE,
-	last_operation_type VARCHAR(255) NOT NULL,
-	correlation_id VARCHAR(255) NULL,
-	short_url VARCHAR(255) NOT NULL
+	createUsertTableQuery := `
+	CREATE TABLE IF NOT EXISTS usert (
+		user_id SERIAL PRIMARY KEY,
+		token_expiration_date TIMESTAMPTZ NOT NULL
 	);`
 
-	_, err := ref.pool.Exec(createTableQuery)
+	createURLMappingTableQuery := `
+	CREATE TABLE IF NOT EXISTS url_mapping (
+		uuid UUID PRIMARY KEY,
+		hash VARCHAR(255) NOT NULL,
+		original_url TEXT NOT NULL,
+		last_operation_type VARCHAR(255) NOT NULL,
+		correlation_id VARCHAR(255) NULL,
+		short_url VARCHAR(255) NOT NULL,
+		user_id INTEGER REFERENCES usert(user_id)
+	);`
+
+	_, err := ref.pool.Exec(createUsertTableQuery)
 	if err != nil {
-		ref.log.Error("Failed Exec sql", zap.Error(err))
-		return fmt.Errorf("failed to execute SQL: %w", err)
+		ref.log.Error("Failed to create usert table", zap.Error(err))
+		return fmt.Errorf("failed to create user table: %w", err)
+	}
+
+	_, err = ref.pool.Exec(createURLMappingTableQuery)
+	if err != nil {
+		ref.log.Error("Failed to create url_mapping table", zap.Error(err))
+		return fmt.Errorf("failed to create url_mapping table: %w", err)
 	}
 
 	return nil
 }
-
 func (ref *DB) GetConnPool() *pgx.ConnPool {
 	return ref.pool
 }

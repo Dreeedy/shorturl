@@ -9,4 +9,5 @@ type URLItem struct {
 	OperationType string
 	CorrelationID string
 	ShortURL      string
+	UsertID       int
 }

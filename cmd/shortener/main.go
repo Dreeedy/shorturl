@@ -7,6 +7,7 @@ import (
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/db"
 	"github.com/Dreeedy/shorturl/internal/handlers"
+	"github.com/Dreeedy/shorturl/internal/middlewares/auth"
 	"github.com/Dreeedy/shorturl/internal/middlewares/gzip"
 	"github.com/Dreeedy/shorturl/internal/middlewares/httplogger"
 	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
@@ -50,14 +51,17 @@ func main() {
 
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger)
 
-	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
+	newUsertService := db.NewUsertService(newConfig, newZapLogger, newDB)
 
+	newHTTPLoggerMiddleware := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
+	newAuthMiddleware := auth.NewAuthMiddleware(newConfig, newZapLogger, newUsertService)
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
 	router.Use(newGzipMiddleware.CompressionHandler)
-	router.Use(newHTTPLogger.RqRsLogger)
+	router.Use(newHTTPLoggerMiddleware.RqRsLogger)
+	router.Use(newAuthMiddleware.Work)
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)

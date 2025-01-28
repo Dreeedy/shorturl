@@ -27,6 +27,8 @@ func NewHTTPLogger(newConfig config.Config, newLogger *zap.Logger) *httpLogger {
 
 func (ref *httpLogger) RqRsLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ref.log.Info("run httploggermiddleware")
+
 		start := time.Now()
 
 		rec := responseRecorder{ResponseWriter: w, statusCode: http.StatusOK}

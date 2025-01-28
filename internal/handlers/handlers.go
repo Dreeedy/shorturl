@@ -13,6 +13,7 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/apperrors"
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/db"
 	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
@@ -98,7 +99,8 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	setURLData := ref.generateShortenedURL(batchAPIRq)
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflictError
@@ -153,7 +155,8 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: shortenAPIRq.URL},
 	}
-	setURLData := ref.generateShortenedURL(batchAPIRq)
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflictError
@@ -205,7 +208,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.URLData {
+func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq, userID int) common.URLData {
 	var result common.URLData
 	cfg := ref.cfg.GetConfig()
 
@@ -220,6 +223,7 @@ func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.URLData {
 			OperationType: "INSERT",
 			CorrelationID: item.CorrelationID,
 			ShortURL:      shortenedURL,
+			UsertID:       userID,
 		}
 		result = append(result, resultItem)
 	}
@@ -262,6 +266,9 @@ func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	ref.log.Info("Ping()", zap.String("Read userID", strconv.Itoa(userID)))
+
 	err := dbstorage.Ping(ref.cfg, ref.log)
 	if err != nil {
 		ref.log.Error("Failed Ping remote database", zap.Error(err))
@@ -294,8 +301,8 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	initialCapacity := len(batchAPIRq)
 	var batchAPIRs = make(BatchAPIRs, 0, initialCapacity)
 
-	// Convert
-	setURLData := ref.generateShortenedURL(batchAPIRq)
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflictError

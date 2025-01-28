@@ -15,13 +15,14 @@ import (
 )
 
 const (
-	maxArgCount  = 6
+	maxArgCount  = 7
 	argIDOffset1 = 1
 	argIDOffset2 = 2
 	argIDOffset3 = 3
 	argIDOffset4 = 4
 	argIDOffset5 = 5
 	argIDOffset6 = 6
+	argIDOffset7 = 7
 )
 
 type DBStorage struct {
@@ -58,7 +59,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 	}()
 
 	query := `
-        INSERT INTO url_mapping (uuid, hash, original_url, last_operation_type, correlation_id, short_url)
+        INSERT INTO url_mapping (uuid, hash, original_url, last_operation_type, correlation_id, short_url, user_id)
         VALUES `
 	args := make([]interface{}, 0, len(data)*maxArgCount)
 	var argCount int
@@ -69,9 +70,13 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 		}
 		query += `($` + strconv.Itoa(argCount+argIDOffset1) + `, $` + strconv.Itoa(argCount+argIDOffset2) + `, $` +
 			strconv.Itoa(argCount+argIDOffset3) + `, $` + strconv.Itoa(argCount+argIDOffset4) + `, $` +
-			strconv.Itoa(argCount+argIDOffset5) + `, $` + strconv.Itoa(argCount+argIDOffset6) + `)`
-		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationID, item.ShortURL)
+			strconv.Itoa(argCount+argIDOffset5) + `, $` + strconv.Itoa(argCount+argIDOffset6) + `, $` +
+			strconv.Itoa(argCount+argIDOffset7) + `)`
+
+		args = append(args, item.UUID, item.Hash, item.OriginalURL, "INSERT", item.CorrelationID, item.ShortURL, item.UsertID)
 		argCount += maxArgCount
+
+		ref.log.Info("SetURL()", zap.String("userID to DB", strconv.Itoa(item.UsertID)))
 	}
 
 	query += `
@@ -94,7 +99,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 		var record common.URLItem
 		var operationType string
 		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationID,
-			&record.ShortURL); err != nil {
+			&record.ShortURL, &record.UsertID); err != nil {
 			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
