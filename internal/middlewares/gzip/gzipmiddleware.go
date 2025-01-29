@@ -1,6 +1,7 @@
 package gzip
 
 import (
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -112,40 +113,38 @@ func (c *compressReader) Close() error {
 
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ow := w
+		log.Println("run CompressionHandler")
 
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		supportsGzip := strings.Contains(acceptEncoding, "gzip")
-		contentType := r.Header.Get("Content-Type")
-		isCompressible := contentType == "application/json" || contentType == "text/html"
-
-		if supportsGzip && isCompressible {
-			cw := newCompressWriter(w)
-			ow = cw
-			defer func() {
-				if err := cw.Close(); err != nil {
-					log.Printf("Error closing compressWriter: %v", err)
-				}
-			}()
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Error reading request body: %v", err)
+			http.Error(w, "Unable to read request body", http.StatusBadRequest)
+			return
 		}
+		defer r.Body.Close()
+
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		contentEncoding := r.Header.Get("Content-Encoding")
-		sendsGzip := strings.Contains(contentEncoding, "gzip")
-		if sendsGzip {
+		if strings.Contains(contentEncoding, "gzip") {
 			cr, err := newCompressReader(r.Body)
 			if err != nil {
 				log.Printf("Error creating compressReader: %v", err)
-				w.WriteHeader(http.StatusInternalServerError)
+				http.Error(w, "Unable to read request body", http.StatusInternalServerError)
 				return
 			}
-			r.Body = cr
-			defer func() {
-				if err := cr.Close(); err != nil {
-					log.Printf("Error closing compressReader: %v", err)
-				}
-			}()
+			defer cr.Close()
+
+			decompressedBody, err := io.ReadAll(cr)
+			if err != nil {
+				log.Printf("Error decompressing request body: %v", err)
+				http.Error(w, "Unable to decompress request body", http.StatusInternalServerError)
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewBuffer(decompressedBody))
 		}
 
-		next.ServeHTTP(ow, r)
+		next.ServeHTTP(w, r)
 	})
 }
