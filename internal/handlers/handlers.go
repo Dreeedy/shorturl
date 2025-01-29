@@ -38,13 +38,16 @@ type HandlerHTTP struct {
 	cfg config.Config
 	stg storages.Storage
 	log *zap.Logger
+	db  *db.DB
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *HandlerHTTP {
+func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage,
+	newLogger *zap.Logger, newDB *db.DB) *HandlerHTTP {
 	return &HandlerHTTP{
 		cfg: newConfig,
 		stg: newStorage,
 		log: newLogger,
+		db:  newDB,
 	}
 }
 
@@ -358,6 +361,54 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set(contentType, contentTypeApplicationJSON)
 	w.WriteHeader(http.StatusCreated)
+	if _, err := w.Write(resp); err != nil {
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
+		return
+	}
+
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	if userID == -1 {
+		ref.log.Error("No userID found in context")
+		http.Error(w, "No user ID found", http.StatusUnauthorized)
+		return
+	}
+
+	urlData, err := dbstorage.GetURLsByUserID(ref.log, ref.db, userID)
+	if err != nil {
+		ref.log.Error("Failed to get URLs by user ID", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if len(urlData) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	var response []map[string]string
+	for _, urlItem := range urlData {
+		response = append(response, map[string]string{
+			"short_url":    urlItem.ShortURL,
+			"original_url": urlItem.OriginalURL,
+		})
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(contentType, contentTypeApplicationJSON)
+	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(resp); err != nil {
 		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

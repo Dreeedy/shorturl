@@ -49,7 +49,7 @@ func main() {
 		}
 	}
 
-	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger)
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB)
 
 	newUsertService := db.NewUsertService(newConfig, newZapLogger, newDB)
 
@@ -73,6 +73,7 @@ func main() {
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
 	router.Post("/api/shorten/batch", newHandlerHTTP.Batch)
 	router.Get("/ping", newHandlerHTTP.Ping)
+	router.Get("/api/users/urls", newHandlerHTTP.GetURLsByUser)
 
 	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
 	newZapLogger.Info("Base URL for shortened URLs: %s\n", zap.String("BaseURL", httpConfig.BaseURL))
