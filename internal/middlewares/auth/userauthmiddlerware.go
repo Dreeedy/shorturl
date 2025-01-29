@@ -55,10 +55,12 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
+		var hasCookies bool = false
 		cookies := r.Cookies()
 		if len(cookies) > 0 {
 			for _, cookie := range cookies {
 				ref.log.Info("Received cookie", zap.String("Name", cookie.Name), zap.String("Value", cookie.Value))
+				hasCookies = true
 			}
 		} else {
 			ref.log.Warn("No cookies received from client")
@@ -68,7 +70,7 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		if err != nil {
 			if err == http.ErrNoCookie {
 				ref.log.Error("Cookie not found", zap.Error(err))
-				cookie = ref.CreateCookie()
+				cookie = ref.CreateCookie(hasCookies)
 				http.SetCookie(w, cookie)
 				ref.log.Info("Set myJWTtoken cookie")
 			} else {
@@ -88,10 +90,10 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 	})
 }
 
-func (ref *Auth) CreateCookie() *http.Cookie {
+func (ref *Auth) CreateCookie(hasCookies bool) *http.Cookie {
 	// Create new User
 
-	myJWTtoken, _ := ref.BuildJWTString()
+	myJWTtoken, _ := ref.BuildJWTString(hasCookies)
 
 	ref.log.Info("CreateCookie", zap.String("myJWTtoken", myJWTtoken))
 
@@ -110,9 +112,13 @@ func (ref *Auth) CreateCookie() *http.Cookie {
 	return newCookie
 }
 
-func (ref *Auth) BuildJWTString() (string, error) {
+func (ref *Auth) BuildJWTString(hasCookies bool) (string, error) {
 	expiresAt := time.Now().Add(TOKEN_EXP)
-	userID, _ := ref.usertService.CreateUsert(expiresAt)
+
+	var userID int = 0
+	if hasCookies {
+		userID, _ = ref.usertService.CreateUsert(expiresAt)
+	}
 
 	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format("2006-01-02 15:04:05")))
 	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))

@@ -51,21 +51,25 @@ func NewDB(newConfig config.Config, newLogger *zap.Logger) (*DB, error) {
 
 func (ref *DB) InitDB() error {
 	createUsertTableQuery := `
-	CREATE TABLE IF NOT EXISTS usert (
-		user_id SERIAL PRIMARY KEY,
-		token_expiration_date TIMESTAMPTZ NOT NULL
-	);`
-
+    CREATE TABLE IF NOT EXISTS usert (
+        user_id SERIAL PRIMARY KEY,
+        token_expiration_date TIMESTAMPTZ NOT NULL
+    );`
 	createURLMappingTableQuery := `
-	CREATE TABLE IF NOT EXISTS url_mapping (
-		uuid UUID PRIMARY KEY,
-		hash VARCHAR(255) NOT NULL,
-		original_url TEXT NOT NULL,
-		last_operation_type VARCHAR(255) NOT NULL,
-		correlation_id VARCHAR(255) NULL,
-		short_url VARCHAR(255) NOT NULL,
-		user_id INTEGER REFERENCES usert(user_id),
-		UNIQUE (original_url, user_id)
+    CREATE TABLE IF NOT EXISTS url_mapping (
+        uuid UUID PRIMARY KEY,
+        hash VARCHAR(255) NOT NULL,
+        original_url TEXT NOT NULL,
+        last_operation_type VARCHAR(255) NOT NULL,
+        correlation_id VARCHAR(255) NULL,
+        short_url VARCHAR(255) NOT NULL,
+        user_id INTEGER REFERENCES usert(user_id),
+        UNIQUE (original_url, user_id)
+    );`
+	insertDefaultUserQuery := `
+	INSERT INTO usert (user_id, token_expiration_date)
+	SELECT 0, NOW()
+	WHERE NOT EXISTS (SELECT 1 FROM usert WHERE user_id = 0
 	);`
 
 	_, err := ref.pool.Exec(createUsertTableQuery)
@@ -74,14 +78,22 @@ func (ref *DB) InitDB() error {
 		return fmt.Errorf("failed to create user table: %w", err)
 	}
 
+	// Создание таблицы "url_mapping"
 	_, err = ref.pool.Exec(createURLMappingTableQuery)
 	if err != nil {
 		ref.log.Error("Failed to create url_mapping table", zap.Error(err))
 		return fmt.Errorf("failed to create url_mapping table: %w", err)
 	}
 
+	_, err = ref.pool.Exec(insertDefaultUserQuery)
+	if err != nil {
+		ref.log.Error("Failed to insert default user", zap.Error(err))
+		return fmt.Errorf("failed to insert default user: %w", err)
+	}
+
 	return nil
 }
+
 func (ref *DB) GetConnPool() *pgx.ConnPool {
 	return ref.pool
 }
