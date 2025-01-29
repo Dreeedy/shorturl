@@ -61,7 +61,12 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(newGzipMiddleware.CompressionHandler)
 	router.Use(newHTTPLoggerMiddleware.RqRsLogger)
-	router.Use(newAuthMiddleware.Work)
+
+	if storageType == "db" {
+		router.Use(newAuthMiddleware.Work)
+	} else {
+		newZapLogger.Info("Skipping authMiddleware registration")
+	}
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
