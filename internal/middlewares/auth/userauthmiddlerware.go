@@ -55,6 +55,15 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
+		cookies := r.Cookies()
+		if len(cookies) > 0 {
+			for _, cookie := range cookies {
+				ref.log.Info("Received cookie", zap.String("Name", cookie.Name), zap.String("Value", cookie.Value))
+			}
+		} else {
+			ref.log.Warn("No cookies received from client")
+		}
+
 		cookie, err := r.Cookie("myJWTtoken")
 		if err != nil {
 			if err == http.ErrNoCookie {
