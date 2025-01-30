@@ -47,6 +47,18 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		// Логируем все заголовки запроса
 		ref.log.Info("Request Headers", zap.Any("headers", r.Header))
 
+		// Логируем все куки запроса
+		cookies := r.Cookies()
+		if cookies != nil {
+			cookieMap := make(map[string]string)
+			for _, cookie := range cookies {
+				cookieMap[cookie.Name] = cookie.Value
+			}
+			ref.log.Info("Request Cookies", zap.Any("cookies", cookieMap))
+		} else {
+			ref.log.Info("No cookies in request")
+		}
+
 		// Сначала пытаемся получить токен из заголовка Authorization
 		var tokenString string
 		authHeader := r.Header.Get("Authorization")
@@ -62,6 +74,11 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), "userID", userID)
 			// Устанавливаем заголовок Authorization в ответе
 			w.Header().Set("Authorization", "Bearer "+tokenString)
+
+			// Создаем новый токен и куку
+			newCookie := ref.CreateCookie(tokenString)
+			http.SetCookie(w, newCookie)
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		} else {
 			ref.log.Error("Invalid token")
@@ -69,6 +86,17 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			return
 		}
 	})
+}
+
+func (ref *Auth) CreateCookie(tokenString string) *http.Cookie {
+	newCookie := &http.Cookie{
+		Name:     "myJWTtoken",
+		Value:    tokenString,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		Secure:   true,
+		HttpOnly: true,
+	}
+	return newCookie
 }
 
 func (ref *Auth) BuildJWTString() (string, error) {
