@@ -49,6 +49,7 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 
 		var hasCookie bool = false
 
+		var tokenString string
 		cookies := r.Cookies()
 		if cookies != nil && len(cookies) > 0 {
 			cookieMap := make(map[string]string)
@@ -57,19 +58,23 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			}
 			ref.log.Info("Request Cookies", zap.Any("cookies", cookieMap))
 			hasCookie = true
+			cookie, _ := r.Cookie("myJWTtoken")
+			tokenString = cookie.Value
 		} else {
 			ref.log.Info("No cookies in request")
 		}
 
 		// Сначала пытаемся получить токен из заголовка Authorization
 		var hasHeader bool = false
-		var tokenString string
+
 		authHeader := r.Header.Get("Authorization")
 		if authHeader != "" {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 			hasHeader = true
 		} else {
-			tokenString, _ = ref.BuildJWTString(false)
+			if tokenString == "" {
+				tokenString, _ = ref.BuildJWTString(false)
+			}
 		}
 
 		ref.log.Info("hasCookie", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
