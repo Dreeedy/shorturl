@@ -47,25 +47,29 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		// Логируем все заголовки запроса
 		ref.log.Info("Request Headers", zap.Any("headers", r.Header))
 
-		// Логируем все куки запроса
+		var hasCookie bool = false
+
 		cookies := r.Cookies()
-		if cookies != nil {
+		if cookies != nil && len(cookies) > 0 {
 			cookieMap := make(map[string]string)
 			for _, cookie := range cookies {
 				cookieMap[cookie.Name] = cookie.Value
 			}
 			ref.log.Info("Request Cookies", zap.Any("cookies", cookieMap))
+			hasCookie = true
 		} else {
 			ref.log.Info("No cookies in request")
 		}
 
 		// Сначала пытаемся получить токен из заголовка Authorization
+		var hasHeader bool = false
 		var tokenString string
 		authHeader := r.Header.Get("Authorization")
 		if authHeader != "" {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+			hasHeader = true
 		} else {
-			tokenString, _ = ref.BuildJWTString()
+			tokenString, _ = ref.BuildJWTString(hasCookie == true && hasHeader == true)
 		}
 
 		// Валидируем токен
@@ -99,9 +103,13 @@ func (ref *Auth) CreateCookie(tokenString string) *http.Cookie {
 	return newCookie
 }
 
-func (ref *Auth) BuildJWTString() (string, error) {
+func (ref *Auth) BuildJWTString(useDefaultUser bool) (string, error) {
 	expiresAt := time.Now().Add(TOKEN_EXP)
-	userID, _ := ref.usertService.CreateUsert(expiresAt)
+
+	var userID = 0
+	if !useDefaultUser {
+		userID, _ = ref.usertService.CreateUsert(expiresAt)
+	}
 
 	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format("2006-01-02 15:04:05")))
 	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))
