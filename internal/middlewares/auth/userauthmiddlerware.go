@@ -45,7 +45,7 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		log.Println("run userauthmiddlerware")
 
 		// Логируем все заголовки запроса
-		ref.log.Debug("Request Headers", zap.Any("headers", r.Header))
+		ref.log.Info("Request Headers", zap.Any("headers", r.Header))
 
 		// Сначала пытаемся получить токен из заголовка Authorization
 		var tokenString string
