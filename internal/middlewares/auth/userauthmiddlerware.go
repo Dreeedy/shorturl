@@ -69,7 +69,7 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 			hasHeader = true
 		} else {
-			tokenString, _ = ref.BuildJWTString(hasCookie == false && hasHeader == false)
+			tokenString, _ = ref.BuildJWTString(false)
 		}
 
 		ref.log.Info("hasCookie", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
