@@ -69,10 +69,11 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 			hasHeader = true
 		} else {
-			ref.log.Info("hasCookie", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
-			ref.log.Info("hasHeader", zap.String("hasHeader", strconv.FormatBool(hasHeader)))
 			tokenString, _ = ref.BuildJWTString(hasCookie == false && hasHeader == false)
 		}
+
+		ref.log.Info("hasCookie", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
+		ref.log.Info("hasHeader", zap.String("hasHeader", strconv.FormatBool(hasHeader)))
 
 		// Валидируем токен
 		userID := ref.ValidateToken(tokenString)
@@ -98,8 +99,9 @@ func (ref *Auth) CreateCookie(tokenString string) *http.Cookie {
 	newCookie := &http.Cookie{
 		Name:     "myJWTtoken",
 		Value:    tokenString,
+		Path:     "/",
 		Expires:  time.Now().Add(365 * 24 * time.Hour),
-		Secure:   true,
+		Secure:   false,
 		HttpOnly: true,
 	}
 	return newCookie
@@ -112,6 +114,8 @@ func (ref *Auth) BuildJWTString(useDefaultUser bool) (string, error) {
 	if !useDefaultUser {
 		userID, _ = ref.usertService.CreateUsert(expiresAt)
 	}
+
+	ref.log.Info("useDefaultUser", zap.String("useDefaultUser", strconv.FormatBool(useDefaultUser)))
 
 	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format("2006-01-02 15:04:05")))
 	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))
