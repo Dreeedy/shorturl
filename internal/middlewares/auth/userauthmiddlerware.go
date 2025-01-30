@@ -53,32 +53,15 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		if authHeader != "" {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
-			// Если заголовка нет, проверяем куки
-			cookie, err := r.Cookie("myJWTtoken")
-			if err != nil {
-				if err == http.ErrNoCookie {
-					ref.log.Warn("No cookies received from client")
-					// Создаем новый токен и куку
-					newCookie, newToken := ref.CreateCookie(false)
-					http.SetCookie(w, newCookie)
-					tokenString = newToken
-
-					// Устанавливаем заголовок Authorization в ответе
-					w.Header().Set("Authorization", "Bearer "+newToken)
-				} else {
-					ref.log.Error("Error reading cookie", zap.Error(err))
-					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-					return
-				}
-			} else {
-				tokenString = cookie.Value
-			}
+			tokenString, _ = ref.BuildJWTString()
 		}
 
 		// Валидируем токен
 		userID := ref.ValidateToken(tokenString)
 		if userID > -1 {
 			ctx := context.WithValue(r.Context(), "userID", userID)
+			// Устанавливаем заголовок Authorization в ответе
+			w.Header().Set("Authorization", "Bearer "+tokenString)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		} else {
 			ref.log.Error("Invalid token")
@@ -88,25 +71,9 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 	})
 }
 
-func (ref *Auth) CreateCookie(hasCookies bool) (*http.Cookie, string) {
-	tokenString, _ := ref.BuildJWTString(hasCookies)
-	newCookie := &http.Cookie{
-		Name:     "myJWTtoken",
-		Value:    tokenString,
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
-		Secure:   true,
-		HttpOnly: true,
-	}
-	return newCookie, tokenString
-}
-
-func (ref *Auth) BuildJWTString(hasCookies bool) (string, error) {
+func (ref *Auth) BuildJWTString() (string, error) {
 	expiresAt := time.Now().Add(TOKEN_EXP)
-
-	var userID int = 0
-	if hasCookies {
-		userID, _ = ref.usertService.CreateUsert(expiresAt)
-	}
+	userID, _ := ref.usertService.CreateUsert(expiresAt)
 
 	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format("2006-01-02 15:04:05")))
 	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))
