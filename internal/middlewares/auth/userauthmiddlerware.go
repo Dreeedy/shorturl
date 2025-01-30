@@ -1,12 +1,11 @@
 package auth
 
 import (
-	"bytes"
 	"context"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Dreeedy/shorturl/internal/config"
@@ -45,71 +44,54 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("run userauthmiddlerware")
 
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			ref.log.Error("Unable to read request body", zap.Error(err))
-			http.Error(w, "Unable to read request body", http.StatusBadRequest)
-			return
-		}
-		defer r.Body.Close()
-
-		r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-		var hasCookies bool = false
-		cookies := r.Cookies()
-		if len(cookies) > 0 {
-			for _, cookie := range cookies {
-				ref.log.Info("Received cookie", zap.String("Name", cookie.Name), zap.String("Value", cookie.Value))
-				hasCookies = true
-			}
+		// Сначала пытаемся получить токен из заголовка Authorization
+		var tokenString string
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 		} else {
-			ref.log.Warn("No cookies received from client")
-		}
-
-		cookie, err := r.Cookie("myJWTtoken")
-		if err != nil {
-			if err == http.ErrNoCookie {
-				ref.log.Error("Cookie not found", zap.Error(err))
-				cookie = ref.CreateCookie(hasCookies)
-				http.SetCookie(w, cookie)
-				ref.log.Info("Set myJWTtoken cookie")
+			// Если заголовка нет, проверяем куки
+			cookie, err := r.Cookie("myJWTtoken")
+			if err != nil {
+				if err == http.ErrNoCookie {
+					ref.log.Warn("No cookies received from client")
+					// Создаем новый токен и куку
+					newCookie, newToken := ref.CreateCookie(false)
+					http.SetCookie(w, newCookie)
+					tokenString = newToken
+				} else {
+					ref.log.Error("Error reading cookie", zap.Error(err))
+					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+					return
+				}
 			} else {
-				ref.log.Error("Error reading cookie", zap.Error(err))
+				tokenString = cookie.Value
 			}
 		}
 
-		userID := ref.ValidateToken(cookie.Value)
+		// Валидируем токен
+		userID := ref.ValidateToken(tokenString)
 		if userID > -1 {
 			ctx := context.WithValue(r.Context(), "userID", userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		} else {
-			ref.log.Error("cookies do not contain the userID")
+			ref.log.Error("Invalid token")
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 	})
 }
 
-func (ref *Auth) CreateCookie(hasCookies bool) *http.Cookie {
-	// Create new User
-
-	myJWTtoken, _ := ref.BuildJWTString(hasCookies)
-
-	ref.log.Info("CreateCookie", zap.String("myJWTtoken", myJWTtoken))
-
-	// Create a new cookie
+func (ref *Auth) CreateCookie(hasCookies bool) (*http.Cookie, string) {
+	tokenString, _ := ref.BuildJWTString(hasCookies)
 	newCookie := &http.Cookie{
-		Name:  "myJWTtoken",
-		Value: myJWTtoken,
-		//Path:     "/",
-		//Domain:   "example.com",
-		Expires:  time.Now().Add(365 * 24 * time.Hour), // 1 year
+		Name:     "myJWTtoken",
+		Value:    tokenString,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
 		Secure:   true,
 		HttpOnly: true,
-		//SameSite: http.SameSiteLaxMode,
 	}
-
-	return newCookie
+	return newCookie, tokenString
 }
 
 func (ref *Auth) BuildJWTString(hasCookies bool) (string, error) {
