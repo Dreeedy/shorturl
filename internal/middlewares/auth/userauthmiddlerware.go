@@ -62,6 +62,9 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 					newCookie, newToken := ref.CreateCookie(false)
 					http.SetCookie(w, newCookie)
 					tokenString = newToken
+
+					// Устанавливаем заголовок Authorization в ответе
+					w.Header().Set("Authorization", "Bearer "+newToken)
 				} else {
 					ref.log.Error("Error reading cookie", zap.Error(err))
 					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
