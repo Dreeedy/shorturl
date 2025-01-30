@@ -69,7 +69,9 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 			hasHeader = true
 		} else {
-			tokenString, _ = ref.BuildJWTString(hasCookie == true && hasHeader == true)
+			ref.log.Info("hasCookie", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
+			ref.log.Info("hasHeader", zap.String("hasHeader", strconv.FormatBool(hasHeader)))
+			tokenString, _ = ref.BuildJWTString(hasCookie == false && hasHeader == false)
 		}
 
 		// Валидируем токен
