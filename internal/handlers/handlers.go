@@ -388,6 +388,7 @@ func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) 
 	}
 
 	if len(urlData) == 0 {
+		w.Header().Set(contentType, contentTypeApplicationJSON)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
