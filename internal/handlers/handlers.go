@@ -114,7 +114,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
 			w.Header().Set(contentType, contentTypeApplicationJSON)
@@ -172,7 +172,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
 			// If there are existing records, return 409 Conflict and the existing short URLs
@@ -320,7 +320,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
 			conflictResponses := make([]ShortURLItem, len(existingRecords))
