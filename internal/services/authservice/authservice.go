@@ -7,6 +7,7 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/db"
+	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/golang-jwt/jwt/v4"
 	"go.uber.org/zap"
 )
@@ -40,7 +41,8 @@ func NewAuthservice(newConfig config.Config, newLogger *zap.Logger, newUsertServ
 }
 
 func (ref *Authservice) Auth(w http.ResponseWriter, userID int) *http.ResponseWriter {
-	if userID > 0 {
+	storageType := storages.GetStorageType(ref.cfg, ref.log)
+	if userID > 0 || storageType != "db" {
 		return &w
 	}
 
