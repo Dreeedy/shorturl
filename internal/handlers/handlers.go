@@ -146,7 +146,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 
 	userID := db.GetUsertIDFromContext(req, ref.log)
-	ref.auth.Auth(w, userID)
+	userID = ref.auth.Auth(w, userID)
 
 	var shortenAPIRq ShortenAPIRq
 

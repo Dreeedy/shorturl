@@ -40,10 +40,10 @@ func NewAuthservice(newConfig config.Config, newLogger *zap.Logger, newUsertServ
 	return newAuthservice
 }
 
-func (ref *Authservice) Auth(w http.ResponseWriter, userID int) *http.ResponseWriter {
+func (ref *Authservice) Auth(w http.ResponseWriter, userID int) int {
 	storageType := storages.GetStorageType(ref.cfg, ref.log)
 	if userID > 0 || storageType != "db" {
-		return &w
+		return userID
 	}
 
 	tokenString, _ := ref.BuildJWTString(false)
@@ -52,7 +52,7 @@ func (ref *Authservice) Auth(w http.ResponseWriter, userID int) *http.ResponseWr
 
 	w.Header().Set("Authorization", "Bearer "+tokenString)
 
-	return &w
+	return ref.ValidateToken(tokenString)
 }
 
 func (ref *Authservice) CreateCookie(tokenString string) *http.Cookie {
@@ -93,4 +93,23 @@ func (ref *Authservice) BuildJWTString(useDefaultUser bool) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func (ref *Authservice) ValidateToken(tokenString string) int {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims,
+		func(t *jwt.Token) (interface{}, error) {
+			return []byte(SECRET_KEY), nil
+		})
+	if err != nil {
+		return -1
+	}
+
+	if !token.Valid {
+		ref.log.Error("Token is not valid")
+		return -1
+	}
+
+	ref.log.Info("Token is valid")
+	return claims.UserID
 }
