@@ -10,6 +10,7 @@ import (
 	"github.com/Dreeedy/shorturl/internal/middlewares/auth"
 	"github.com/Dreeedy/shorturl/internal/middlewares/gzip"
 	"github.com/Dreeedy/shorturl/internal/middlewares/httplogger"
+	"github.com/Dreeedy/shorturl/internal/services/authservice"
 	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
 	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/go-chi/chi"
@@ -49,9 +50,10 @@ func main() {
 		}
 	}
 
-	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB)
-
 	newUsertService := db.NewUsertService(newConfig, newZapLogger, newDB)
+	newAuthService := authservice.NewAuthservice(newConfig, newZapLogger, newUsertService)
+
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB, newAuthService)
 
 	newHTTPLoggerMiddleware := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
