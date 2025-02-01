@@ -78,12 +78,9 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 
 		// Валидируем токен
 		userID := ref.ValidateToken(tokenString)
-		if userID > -1 {
-			ctx := context.WithValue(r.Context(), "userID", userID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		}
+		ctx := context.WithValue(r.Context(), "userID", userID)
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

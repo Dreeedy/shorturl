@@ -83,7 +83,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	}
 
 	userID := db.GetUsertIDFromContext(req, ref.log)
-	ref.auth.Auth(w, userID)
+	userID = ref.auth.Auth(w, userID)
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -295,7 +295,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	}
 
 	userID := db.GetUsertIDFromContext(req, ref.log)
-	ref.auth.Auth(w, userID)
+	userID = ref.auth.Auth(w, userID)
 
 	var batchAPIRq BatchAPIRq
 

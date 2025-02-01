@@ -52,7 +52,9 @@ func (ref *Authservice) Auth(w http.ResponseWriter, userID int) int {
 
 	w.Header().Set("Authorization", "Bearer "+tokenString)
 
-	return ref.ValidateToken(tokenString)
+	newUserID := ref.ValidateToken(tokenString)
+
+	return newUserID
 }
 
 func (ref *Authservice) CreateCookie(tokenString string) *http.Cookie {
@@ -111,5 +113,7 @@ func (ref *Authservice) ValidateToken(tokenString string) int {
 	}
 
 	ref.log.Info("Token is valid")
+	ref.log.Info("ValidateToken()", zap.String("claims.UserID", strconv.Itoa(claims.UserID)))
+
 	return claims.UserID
 }
