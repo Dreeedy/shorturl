@@ -71,73 +71,20 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		if authHeader != "" {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 			hasHeader = true
-		} else {
-			if tokenString == "" {
-				tokenString, _ = ref.BuildJWTString(false)
-			}
 		}
 
-		ref.log.Info("hasCookie", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
-		ref.log.Info("hasHeader", zap.String("hasHeader", strconv.FormatBool(hasHeader)))
+		ref.log.Info("Work()", zap.String("hasCookie", strconv.FormatBool(hasCookie)))
+		ref.log.Info("Work()", zap.String("hasHeader", strconv.FormatBool(hasHeader)))
 
 		// Валидируем токен
 		userID := ref.ValidateToken(tokenString)
 		if userID > -1 {
 			ctx := context.WithValue(r.Context(), "userID", userID)
-			// Устанавливаем заголовок Authorization в ответе
-			w.Header().Set("Authorization", "Bearer "+tokenString)
-
-			// Создаем новый токен и куку
-			newCookie := ref.CreateCookie(tokenString)
-			http.SetCookie(w, newCookie)
-
 			next.ServeHTTP(w, r.WithContext(ctx))
-		} else {
-			ref.log.Error("Invalid token")
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-			return
 		}
+
+		next.ServeHTTP(w, r)
 	})
-}
-
-func (ref *Auth) CreateCookie(tokenString string) *http.Cookie {
-	newCookie := &http.Cookie{
-		Name:     "myJWTtoken",
-		Value:    tokenString,
-		Path:     "/",
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
-		Secure:   false,
-		HttpOnly: true,
-	}
-	return newCookie
-}
-
-func (ref *Auth) BuildJWTString(useDefaultUser bool) (string, error) {
-	expiresAt := time.Now().Add(TOKEN_EXP)
-
-	var userID = 0
-	if !useDefaultUser {
-		userID, _ = ref.usertService.CreateUsert(expiresAt)
-	}
-
-	ref.log.Info("useDefaultUser", zap.String("useDefaultUser", strconv.FormatBool(useDefaultUser)))
-
-	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format("2006-01-02 15:04:05")))
-	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expiresAt),
-		},
-		UserID: userID,
-	})
-
-	tokenString, err := token.SignedString([]byte(SECRET_KEY))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
 }
 
 func (ref *Auth) ValidateToken(tokenString string) int {

@@ -14,6 +14,7 @@ import (
 	"github.com/Dreeedy/shorturl/internal/apperrors"
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/db"
+	"github.com/Dreeedy/shorturl/internal/services/authservice"
 	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
@@ -35,19 +36,21 @@ const (
 )
 
 type HandlerHTTP struct {
-	cfg config.Config
-	stg storages.Storage
-	log *zap.Logger
-	db  *db.DB
+	cfg  config.Config
+	stg  storages.Storage
+	log  *zap.Logger
+	db   *db.DB
+	auth *authservice.Authservice
 }
 
 func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage,
-	newLogger *zap.Logger, newDB *db.DB) *HandlerHTTP {
+	newLogger *zap.Logger, newDB *db.DB, newAuth *authservice.Authservice) *HandlerHTTP {
 	return &HandlerHTTP{
-		cfg: newConfig,
-		stg: newStorage,
-		log: newLogger,
-		db:  newDB,
+		cfg:  newConfig,
+		stg:  newStorage,
+		log:  newLogger,
+		db:   newDB,
+		auth: newAuth,
 	}
 }
 
@@ -79,6 +82,9 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	ref.auth.Auth(w, userID)
+
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
@@ -102,7 +108,6 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	userID := db.GetUsertIDFromContext(req, ref.log)
 	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
@@ -140,6 +145,9 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	ref.auth.Auth(w, userID)
+
 	var shortenAPIRq ShortenAPIRq
 
 	if err := json.NewDecoder(req.Body).Decode(&shortenAPIRq); err != nil {
@@ -158,7 +166,6 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: shortenAPIRq.URL},
 	}
-	userID := db.GetUsertIDFromContext(req, ref.log)
 	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
@@ -287,6 +294,9 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	ref.auth.Auth(w, userID)
+
 	var batchAPIRq BatchAPIRq
 
 	if err := json.NewDecoder(req.Body).Decode(&batchAPIRq); err != nil {
@@ -304,7 +314,6 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	initialCapacity := len(batchAPIRq)
 	var batchAPIRs = make(BatchAPIRs, 0, initialCapacity)
 
-	userID := db.GetUsertIDFromContext(req, ref.log)
 	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
@@ -373,10 +382,11 @@ func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	// В эту ручку может обращаться только авторизованный.
 	userID := db.GetUsertIDFromContext(req, ref.log)
-	if userID == -1 {
+	if userID < 0 {
 		ref.log.Error("No userID found in context")
-		http.Error(w, "No user ID found", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 
