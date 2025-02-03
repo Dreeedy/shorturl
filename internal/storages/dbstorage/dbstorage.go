@@ -11,6 +11,7 @@ import (
 	"github.com/Dreeedy/shorturl/internal/db"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/jackc/pgx"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
 
@@ -25,21 +26,26 @@ const (
 	argIDOffset7 = 7
 )
 
-type DBStorage struct {
+type DBStorage interface {
+	DeleteURLsByUser(hashes []string, userID int) error
+	GetURLWithDeletedFlag(shortURL string) (string, bool, bool)
+}
+
+type DBStorageImpl struct {
 	db  *db.DB
 	log *zap.Logger
 	cfg config.Config
 }
 
-func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *DBStorage {
-	return &DBStorage{
+func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *DBStorageImpl {
+	return &DBStorageImpl{
 		db:  newDB,
 		log: newLogger,
 		cfg: newConfig,
 	}
 }
 
-func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
+func (ref *DBStorageImpl) SetURL(data common.URLData) (common.URLData, error) {
 	tx, err := ref.db.GetConnPool().Begin()
 	if err != nil {
 		ref.log.Error("Failed to begin transaction", zap.Error(err))
@@ -99,7 +105,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 		var record common.URLItem
 		var operationType string
 		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationID,
-			&record.ShortURL, &record.UsertID); err != nil {
+			&record.ShortURL, &record.UsertID, &record.IsDeleted); err != nil {
 			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
@@ -126,7 +132,7 @@ func (ref *DBStorage) SetURL(data common.URLData) (common.URLData, error) {
 }
 
 // GetURL retrieves a URL from the storage.
-func (ref *DBStorage) GetURL(shortURL string) (string, bool) {
+func (ref *DBStorageImpl) GetURL(shortURL string) (string, bool) {
 	var originalURL string
 	query := `SELECT original_url FROM url_mapping WHERE hash = $1`
 
@@ -209,4 +215,50 @@ func GetURLsByUserID(newLogger *zap.Logger, newDB *db.DB, userID int) (common.UR
 
 	newLogger.Sugar().Infow("GetURLsByUserID results", "results", results)
 	return results, nil
+}
+
+func (ref *DBStorageImpl) DeleteURLsByUser(hashes []string, userID int) error {
+	tx, err := ref.db.GetConnPool().Begin()
+	if err != nil {
+		ref.log.Error("Failed to begin transaction", zap.Error(err))
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				ref.log.Error("Failed to rollback transaction", zap.Error(rollbackErr))
+			}
+		} else {
+			if commitErr := tx.Commit(); commitErr != nil {
+				ref.log.Error("Failed to commit transaction", zap.Error(commitErr))
+				err = commitErr
+			}
+		}
+	}()
+
+	query := `
+    UPDATE url_mapping
+    SET is_deleted = TRUE
+    WHERE hash = ANY($1) AND user_id = $2;`
+	_, err = tx.Exec(query, pq.Array(hashes), userID)
+	if err != nil {
+		ref.log.Error("Failed to delete URLs", zap.Error(err))
+		return fmt.Errorf("failed to delete URLs: %w", err)
+	}
+	return nil
+}
+
+func (ref *DBStorageImpl) GetURLWithDeletedFlag(shortURL string) (string, bool, bool) {
+	var originalURL string
+	var isDeleted bool
+	query := `SELECT original_url, is_deleted FROM url_mapping WHERE hash = $1`
+	errQueryRow := ref.db.GetConnPool().QueryRow(query, shortURL).Scan(&originalURL, &isDeleted)
+	if errQueryRow != nil {
+		if errors.Is(errQueryRow, pgx.ErrNoRows) {
+			return "", false, false
+		}
+		ref.log.Error("Failed to retrieve URL", zap.Error(errQueryRow))
+		return "", false, false
+	}
+	return originalURL, true, isDeleted
 }

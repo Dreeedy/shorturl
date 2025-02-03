@@ -64,33 +64,30 @@ func (ref *DB) InitDB() error {
         correlation_id VARCHAR(255) NULL,
         short_url VARCHAR(255) NOT NULL,
         user_id INTEGER REFERENCES usert(user_id),
+        is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
         UNIQUE (original_url, user_id)
     );`
 	insertDefaultUserQuery := `
-	INSERT INTO usert (user_id, token_expiration_date)
-	SELECT 0, NOW()
-	WHERE NOT EXISTS (SELECT 1 FROM usert WHERE user_id = 0
-	);`
-
+    INSERT INTO usert (user_id, token_expiration_date)
+    SELECT 0, NOW()
+    WHERE NOT EXISTS (SELECT 1 FROM usert WHERE user_id = 0
+    );`
 	_, err := ref.pool.Exec(createUsertTableQuery)
 	if err != nil {
 		ref.log.Error("Failed to create usert table", zap.Error(err))
 		return fmt.Errorf("failed to create user table: %w", err)
 	}
-
 	// Создание таблицы "url_mapping"
 	_, err = ref.pool.Exec(createURLMappingTableQuery)
 	if err != nil {
 		ref.log.Error("Failed to create url_mapping table", zap.Error(err))
 		return fmt.Errorf("failed to create url_mapping table: %w", err)
 	}
-
 	_, err = ref.pool.Exec(insertDefaultUserQuery)
 	if err != nil {
 		ref.log.Error("Failed to insert default user", zap.Error(err))
 		return fmt.Errorf("failed to insert default user: %w", err)
 	}
-
 	return nil
 }
 

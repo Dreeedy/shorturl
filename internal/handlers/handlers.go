@@ -36,21 +36,24 @@ const (
 )
 
 type HandlerHTTP struct {
-	cfg  config.Config
-	stg  storages.Storage
-	log  *zap.Logger
-	db   *db.DB
-	auth *authservice.Authservice
+	cfg       config.Config
+	stg       storages.Storage
+	log       *zap.Logger
+	db        *db.DB
+	auth      *authservice.Authservice
+	dBStorage *dbstorage.DBStorageImpl
 }
 
 func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage,
-	newLogger *zap.Logger, newDB *db.DB, newAuth *authservice.Authservice) *HandlerHTTP {
+	newLogger *zap.Logger, newDB *db.DB, newAuth *authservice.Authservice,
+	newDBStorage *dbstorage.DBStorageImpl) *HandlerHTTP {
 	return &HandlerHTTP{
-		cfg:  newConfig,
-		stg:  newStorage,
-		log:  newLogger,
-		db:   newDB,
-		auth: newAuth,
+		cfg:       newConfig,
+		stg:       newStorage,
+		log:       newLogger,
+		db:        newDB,
+		auth:      newAuth,
+		dBStorage: newDBStorage,
 	}
 }
 
@@ -259,10 +262,22 @@ func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 
 	shortURL := chi.URLParam(req, "id")
 
-	originalURL, found := ref.stg.GetURL(shortURL)
+	var originalURL string
+	var found bool
+	var isDeleted bool
+	if storages.GetStorageType(ref.cfg, ref.log) != "db" {
+		originalURL, found = ref.stg.GetURL(shortURL)
+	} else {
+		originalURL, found, isDeleted = ref.dBStorage.GetURLWithDeletedFlag(shortURL)
+	}
 
 	if !found {
 		http.Error(w, "URL not found", http.StatusBadRequest)
+		return
+	}
+
+	if isDeleted {
+		w.WriteHeader(http.StatusGone)
 		return
 	}
 
@@ -424,4 +439,41 @@ func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) 
 		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
+}
+
+func (ref *HandlerHTTP) DeleteURLsByUser(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodDelete {
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
+		return
+	}
+
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	if userID < 0 {
+		ref.log.Error("No userID found in context")
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	var hashes []string
+	if err := json.NewDecoder(req.Body).Decode(&hashes); err != nil {
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
+		return
+	}
+
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+	}()
+
+	go func() {
+		err := ref.dBStorage.DeleteURLsByUser(hashes, userID)
+		if err != nil {
+			ref.log.Error("Error marking URLs as deleted", zap.String(errorKey, err.Error()))
+		}
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
 }

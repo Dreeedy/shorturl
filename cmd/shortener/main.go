@@ -13,6 +13,7 @@ import (
 	"github.com/Dreeedy/shorturl/internal/services/authservice"
 	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
 	"github.com/Dreeedy/shorturl/internal/storages"
+	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"go.uber.org/zap"
@@ -53,7 +54,8 @@ func main() {
 	newUsertService := db.NewUsertService(newConfig, newZapLogger, newDB)
 	newAuthService := authservice.NewAuthservice(newConfig, newZapLogger, newUsertService)
 
-	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB, newAuthService)
+	newDBStorage := dbstorage.NewDBStorage(newConfig, newZapLogger, newDB)
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB, newAuthService, newDBStorage)
 
 	newHTTPLoggerMiddleware := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
@@ -76,6 +78,7 @@ func main() {
 	router.Post("/api/shorten/batch", newHandlerHTTP.Batch)
 	router.Get("/ping", newHandlerHTTP.Ping)
 	router.Get("/api/user/urls", newHandlerHTTP.GetURLsByUser)
+	router.Delete("/api/user/urls", newHandlerHTTP.DeleteURLsByUser)
 
 	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
 	newZapLogger.Info("Base URL for shortened URLs: %s\n", zap.String("BaseURL", httpConfig.BaseURL))

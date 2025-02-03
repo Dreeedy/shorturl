@@ -10,4 +10,5 @@ type URLItem struct {
 	CorrelationID string
 	ShortURL      string
 	UsertID       int
+	IsDeleted     bool
 }
