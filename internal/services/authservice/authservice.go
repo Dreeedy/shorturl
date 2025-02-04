@@ -1,6 +1,7 @@
 package authservice
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,11 +13,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// принимает ид пользователя
-// если ид есть то мы ничего не делаем
-// если ид нет, то создаем нового пользователя, создаем куку и тд
+type AuthService interface {
+	Auth(w http.ResponseWriter, userID int) int
+	CreateCookie(tokenString string) *http.Cookie
+	BuildJWTString(useDefaultUser bool) (string, error)
+	ValidateToken(tokenString string) int
+}
 
-type Authservice struct {
+type AuthServiceImpl struct {
 	cfg          config.Config
 	log          *zap.Logger
 	usertService *db.UsertService
@@ -27,20 +31,17 @@ type Claims struct {
 	UserID int
 }
 
-const TOKEN_EXP = time.Hour * 3
-const SECRET_KEY = "supersecretkey"
-
-func NewAuthservice(newConfig config.Config, newLogger *zap.Logger, newUsertService *db.UsertService) *Authservice {
-	var newAuthservice = &Authservice{
+func NewAuthService(newConfig config.Config, newLogger *zap.Logger, newUsertService *db.UsertService) AuthService {
+	var newAuthService = &AuthServiceImpl{
 		cfg:          newConfig,
 		log:          newLogger,
 		usertService: newUsertService,
 	}
 
-	return newAuthservice
+	return newAuthService
 }
 
-func (ref *Authservice) Auth(w http.ResponseWriter, userID int) int {
+func (ref *AuthServiceImpl) Auth(w http.ResponseWriter, userID int) int {
 	storageType := storages.GetStorageType(ref.cfg, ref.log)
 	if userID > 0 || storageType != "db" {
 		return userID
@@ -57,7 +58,7 @@ func (ref *Authservice) Auth(w http.ResponseWriter, userID int) int {
 	return newUserID
 }
 
-func (ref *Authservice) CreateCookie(tokenString string) *http.Cookie {
+func (ref *AuthServiceImpl) CreateCookie(tokenString string) *http.Cookie {
 	newCookie := &http.Cookie{
 		Name:     "myJWTtoken",
 		Value:    tokenString,
@@ -69,8 +70,10 @@ func (ref *Authservice) CreateCookie(tokenString string) *http.Cookie {
 	return newCookie
 }
 
-func (ref *Authservice) BuildJWTString(useDefaultUser bool) (string, error) {
-	expiresAt := time.Now().Add(TOKEN_EXP)
+func (ref *AuthServiceImpl) BuildJWTString(useDefaultUser bool) (string, error) {
+	cfg := ref.cfg.GetConfig()
+
+	expiresAt := time.Now().Add(time.Hour * time.Duration(cfg.TokenExpHours))
 
 	var userID = 0
 	if !useDefaultUser {
@@ -78,8 +81,7 @@ func (ref *Authservice) BuildJWTString(useDefaultUser bool) (string, error) {
 	}
 
 	ref.log.Info("useDefaultUser", zap.String("useDefaultUser", strconv.FormatBool(useDefaultUser)))
-
-	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format("2006-01-02 15:04:05")))
+	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format(time.RFC3339)))
 	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
@@ -89,19 +91,20 @@ func (ref *Authservice) BuildJWTString(useDefaultUser bool) (string, error) {
 		UserID: userID,
 	})
 
-	tokenString, err := token.SignedString([]byte(SECRET_KEY))
+	tokenString, err := token.SignedString([]byte(cfg.TokenSecretKey))
 	if err != nil {
-		return "", err
+		ref.log.Error("failed to get SignedString", zap.Error(err))
+		return "", fmt.Errorf("failed to get SignedString: %w", err)
 	}
 
 	return tokenString, nil
 }
 
-func (ref *Authservice) ValidateToken(tokenString string) int {
+func (ref *AuthServiceImpl) ValidateToken(tokenString string) int {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims,
 		func(t *jwt.Token) (interface{}, error) {
-			return []byte(SECRET_KEY), nil
+			return []byte(ref.cfg.GetConfig().TokenSecretKey), nil
 		})
 	if err != nil {
 		return -1

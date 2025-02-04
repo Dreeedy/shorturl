@@ -1,35 +1,37 @@
 package db
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"go.uber.org/zap"
 )
 
 type Usert struct {
-	ID                  int
-	TokenString         string
 	TokenExpirationDate time.Time
+	TokenString         string
+	ID                  int
 }
 
 type UsertService struct {
-	db  *DB
 	log *zap.Logger
 	cfg config.Config
+	db  DB
 }
 
-func NewUsertService(newConfig config.Config, newLogger *zap.Logger, newDB *DB) *UsertService {
+func NewUsertService(newConfig config.Config, newLogger *zap.Logger, newDB DB) *UsertService {
 	return &UsertService{
-		db:  newDB,
 		log: newLogger,
 		cfg: newConfig,
+		db:  newDB,
 	}
 }
 
-// CreateUsert создает нового пользователя
+// CreateUsert create new usert.
 func (ref *UsertService) CreateUsert(tokenExpirationDate time.Time) (int, error) {
 	var id int
 	query := `
@@ -37,34 +39,27 @@ func (ref *UsertService) CreateUsert(tokenExpirationDate time.Time) (int, error)
         VALUES ($1)
         RETURNING user_id
     `
-	err := ref.db.pool.QueryRow(query, tokenExpirationDate).Scan(&id)
+	err := ref.db.GetConnPool().QueryRow(query, tokenExpirationDate).Scan(&id)
 	if err != nil {
-		return 0, err
+		ref.log.Error("failed to scan row", zap.Error(err))
+		return 0, fmt.Errorf("failed to scan row: %w", err)
 	}
 	return id, nil
 }
 
-// GetUser получает пользователя по ID
-// func (ref *UsertService) GetUsert(id int) (Usert, error) {
-// 	var usert Usert
-// 	err := ref.db.pool.QueryRow(
-// 		"SELECT id, name, email FROM usert WHERE id=$1", id).Scan(&usert.ID, &usert.Name, &usert.Email)
-// 	if err != nil {
-// 		return Usert{}, err
-// 	}
-// 	return usert, nil
-// }
-
-// UpdateUser обновляет пользователя по ID
+// UpdateUsert updates user by ID.
 func (ref *UsertService) UpdateUsert(id int, name, email string) error {
-	_, err := ref.db.pool.Exec(
-		"UPDATE usert SET name=$1, email=$2 WHERE id=$3", name, email, id)
-	return err
+	_, err := ref.db.GetConnPool().Exec("UPDATE usert SET name=$1, email=$2 WHERE id=$3", name, email, id)
+	if err != nil {
+		ref.log.Error("failed to update usert table", zap.Error(err))
+		return fmt.Errorf("failed to update usert table: %w", err)
+	}
+	return nil
 }
 
 func GetUsertIDFromContext(req *http.Request, log *zap.Logger) int {
 	ctx := req.Context()
-	userID, ok := ctx.Value("userID").(int)
+	userID, ok := ctx.Value(common.UserIDKey).(int)
 	if !ok {
 		log.Error("userID not found in context")
 		userID = -1

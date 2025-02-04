@@ -39,14 +39,14 @@ type HandlerHTTP struct {
 	cfg       config.Config
 	stg       storages.Storage
 	log       *zap.Logger
-	db        *db.DB
-	auth      *authservice.Authservice
-	dBStorage *dbstorage.DBStorageImpl
+	db        db.DB
+	auth      authservice.AuthService
+	dBStorage dbstorage.DBStorage
 }
 
 func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage,
-	newLogger *zap.Logger, newDB *db.DB, newAuth *authservice.Authservice,
-	newDBStorage *dbstorage.DBStorageImpl) *HandlerHTTP {
+	newLogger *zap.Logger, newDB db.DB, newAuth authservice.AuthService,
+	newDBStorage dbstorage.DBStorage) *HandlerHTTP {
 	return &HandlerHTTP{
 		cfg:       newConfig,
 		stg:       newStorage,
@@ -107,7 +107,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Convert
+	// Convert.
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
@@ -128,7 +128,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 			}
 			return
 		} else {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			ref.log.Error(http.StatusText(http.StatusInternalServerError), zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -165,7 +165,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	// Convert
+	// Convert.
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: shortenAPIRq.URL},
 	}
@@ -178,7 +178,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
-			// If there are existing records, return 409 Conflict and the existing short URLs
+			// If there are existing records, return 409 Conflict and the existing short URLs.
 			conflictResponse := ShortenAPIRs{
 				Result: existingRecords[0].ShortURL,
 			}
@@ -196,7 +196,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 			}
 			return
 		} else {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			ref.log.Error(http.StatusText(http.StatusInternalServerError), zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -359,7 +359,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 			}
 			return
 		} else {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			ref.log.Error(http.StatusText(http.StatusInternalServerError), zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -396,7 +396,6 @@ func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) 
 		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
-
 	// В эту ручку может обращаться только авторизованный.
 	userID := db.GetUsertIDFromContext(req, ref.log)
 	if userID < 0 {
@@ -404,21 +403,21 @@ func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) 
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
-
-	urlData, err := dbstorage.GetURLsByUserID(ref.log, ref.db, userID)
+	urlData, err := ref.dBStorage.GetURLsByUserID(userID)
 	if err != nil {
 		ref.log.Error("Failed to get URLs by user ID", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-
 	if len(urlData) == 0 {
 		w.Header().Set(contentType, contentTypeApplicationJSON)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	var response []map[string]string
+	// Предварительно выделяем память для среза response.
+	response := make([]map[string]string, 0, len(urlData))
+
 	for _, urlItem := range urlData {
 		response = append(response, map[string]string{
 			"short_url":    urlItem.ShortURL,

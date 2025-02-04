@@ -12,3 +12,7 @@ type URLItem struct {
 	UsertID       int
 	IsDeleted     bool
 }
+
+type ContextKey string
+
+const UserIDKey ContextKey = "userID"
