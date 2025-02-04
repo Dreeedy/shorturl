@@ -29,15 +29,16 @@ const (
 type DBStorage interface {
 	DeleteURLsByUser(hashes []string, userID int) error
 	GetURLWithDeletedFlag(shortURL string) (string, bool, bool)
+	GetURLsByUserID(userID int) (common.URLData, error)
 }
 
 type DBStorageImpl struct {
-	db  *db.DB
+	db  db.DB
 	log *zap.Logger
 	cfg config.Config
 }
 
-func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *DBStorageImpl {
+func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB db.DB) *DBStorageImpl {
 	return &DBStorageImpl{
 		db:  newDB,
 		log: newLogger,
@@ -184,15 +185,15 @@ func Ping(newConfig config.Config, newLogger *zap.Logger) error {
 }
 
 // GetURLsByUserID retrieves all URLs associated with a specific user ID.
-func GetURLsByUserID(newLogger *zap.Logger, newDB *db.DB, userID int) (common.URLData, error) {
+func (ref *DBStorageImpl) GetURLsByUserID(userID int) (common.URLData, error) {
 	query := `
 	SELECT uuid, hash, original_url, last_operation_type, correlation_id, short_url, user_id
 	FROM url_mapping
 	WHERE user_id = $1
 	;`
-	rows, err := newDB.GetConnPool().Query(query, userID)
+	rows, err := ref.db.GetConnPool().Query(query, userID)
 	if err != nil {
-		newLogger.Error("Failed to query URLs by user ID", zap.Error(err))
+		ref.log.Error("Failed to query URLs by user ID", zap.Error(err))
 		return nil, fmt.Errorf("failed to query URLs by user ID: %w", err)
 	}
 	defer rows.Close()
@@ -202,18 +203,18 @@ func GetURLsByUserID(newLogger *zap.Logger, newDB *db.DB, userID int) (common.UR
 		var record common.URLItem
 		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &record.OperationType, &record.CorrelationID,
 			&record.ShortURL, &record.UsertID); err != nil {
-			newLogger.Error("Failed to scan row", zap.Error(err))
+			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		results = append(results, record)
 	}
 
 	if err := rows.Err(); err != nil {
-		newLogger.Error("Row iteration error", zap.Error(err))
+		ref.log.Error("Row iteration error", zap.Error(err))
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
-	newLogger.Sugar().Infow("GetURLsByUserID results", "results", results)
+	ref.log.Sugar().Infow("GetURLsByUserID results", "results", results)
 	return results, nil
 }
 
