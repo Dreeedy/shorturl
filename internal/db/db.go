@@ -8,7 +8,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type DB struct {
+type DB interface {
+	InitDB() error
+	GetConnPool() *pgx.ConnPool
+}
+
+type DBImpl struct {
 	cfg  config.Config
 	log  *zap.Logger
 	pool *pgx.ConnPool
@@ -18,7 +23,7 @@ const (
 	maxConnections = 10
 )
 
-func NewDB(newConfig config.Config, newLogger *zap.Logger) (*DB, error) {
+func NewDB(newConfig config.Config, newLogger *zap.Logger) (DB, error) {
 	// Parse the connection string
 	DBConnectionAdress := newConfig.GetConfig().DBConnectionAdress
 	newLogger.Info("DBConnectionAdress", zap.String("DBConnectionAdress", DBConnectionAdress))
@@ -40,7 +45,7 @@ func NewDB(newConfig config.Config, newLogger *zap.Logger) (*DB, error) {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
-	var newDB = &DB{
+	var newDB = &DBImpl{
 		cfg:  newConfig,
 		log:  newLogger,
 		pool: newConnPool,
@@ -49,7 +54,7 @@ func NewDB(newConfig config.Config, newLogger *zap.Logger) (*DB, error) {
 	return newDB, nil
 }
 
-func (ref *DB) InitDB() error {
+func (ref *DBImpl) InitDB() error {
 	createUsertTableQuery := `
     CREATE TABLE IF NOT EXISTS usert (
         user_id SERIAL PRIMARY KEY,
@@ -91,6 +96,6 @@ func (ref *DB) InitDB() error {
 	return nil
 }
 
-func (ref *DB) GetConnPool() *pgx.ConnPool {
+func (ref *DBImpl) GetConnPool() *pgx.ConnPool {
 	return ref.pool
 }

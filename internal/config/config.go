@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"os"
+	"strconv"
 )
 
 type Config interface {
@@ -17,11 +18,14 @@ type HTTPConfig struct {
 	StorageType        string
 	FileStoragePath    string
 	DBConnectionAdress string
+	TokenSecretKey     string
+	TokenExpHours      int
 }
+
+const defaultTokenExpHours = 3
 
 func NewConfig() Config {
 	config := &HTTPConfig{}
-
 	flag.StringVar(&config.RunAddr, "a", ":8080", "address to run HTTP server")
 	flag.StringVar(&config.BaseURL, "b", "http://localhost:8080", "base URL for shortened URLs")
 	flag.StringVar(&config.FlagLogLevel, "l", "info", "log level")
@@ -31,6 +35,8 @@ func NewConfig() Config {
 	flag.StringVar(&config.DBConnectionAdress, "d",
 		"",
 		"string with the database connection address")
+	flag.IntVar(&config.TokenExpHours, "te", defaultTokenExpHours, "token lifetime in hours")
+	flag.StringVar(&config.TokenSecretKey, "tk", "supersecretkey", "token signature")
 	flag.Parse()
 
 	// Override values from environment variables if they are set.
@@ -51,6 +57,17 @@ func NewConfig() Config {
 	}
 	if databaseConnectionAdress, ok := os.LookupEnv("DATABASE_DSN"); ok && databaseConnectionAdress != "" {
 		config.DBConnectionAdress = databaseConnectionAdress
+	}
+	if tokenSecretKey, ok := os.LookupEnv("TOKEN_SIGN"); ok && tokenSecretKey != "" {
+		config.TokenSecretKey = tokenSecretKey
+	}
+	if tokenExpHoursStr, ok := os.LookupEnv("TOKEN_EXP_HOURS"); ok && tokenExpHoursStr != "" {
+		tokenExpHours, err := strconv.Atoi(tokenExpHoursStr)
+		if err == nil {
+			config.TokenExpHours = tokenExpHours
+		} else {
+			config.TokenExpHours = 3
+		}
 	}
 
 	return config
