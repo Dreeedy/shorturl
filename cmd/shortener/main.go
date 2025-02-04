@@ -28,7 +28,7 @@ func main() {
 		log.Fatal("zaplogger init failed:", zaploggerzErr)
 	}
 
-	var newDB *db.DB
+	var newDB db.DB
 	var errnewDB error
 	storageType := storages.GetStorageType(newConfig, newZapLogger)
 	if storageType == "db" {
@@ -52,7 +52,7 @@ func main() {
 	}
 
 	newUsertService := db.NewUsertService(newConfig, newZapLogger, newDB)
-	newAuthService := authservice.NewAuthservice(newConfig, newZapLogger, newUsertService)
+	newAuthService := authservice.NewAuthService(newConfig, newZapLogger, newUsertService)
 
 	newDBStorage := dbstorage.NewDBStorage(newConfig, newZapLogger, newDB)
 	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB, newAuthService, newDBStorage)
