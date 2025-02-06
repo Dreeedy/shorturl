@@ -61,7 +61,7 @@ func GetUsertIDFromContext(req *http.Request, log *zap.Logger) int {
 	ctx := req.Context()
 	userID, ok := ctx.Value(common.UserIDKey).(int)
 	if !ok {
-		log.Error("userID not found in context")
+		log.Info("userID not found in context")
 		userID = -1
 	}
 	log.Info("GetUsertIDFromContext()", zap.String("Read userID", strconv.Itoa(userID)))

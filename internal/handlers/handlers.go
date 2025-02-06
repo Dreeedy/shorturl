@@ -396,13 +396,13 @@ func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) 
 		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
-	// В эту ручку может обращаться только авторизованный.
+
 	userID := db.GetUsertIDFromContext(req, ref.log)
 	if userID < 0 {
-		ref.log.Error("No userID found in context")
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
+		ref.log.Info("No userID found in context")
 	}
+	userID = ref.auth.Auth(w, userID)
+
 	urlData, err := ref.dBStorage.GetURLsByUserID(userID)
 	if err != nil {
 		ref.log.Error("Failed to get URLs by user ID", zap.Error(err))
@@ -448,7 +448,7 @@ func (ref *HandlerHTTP) DeleteURLsByUser(w http.ResponseWriter, req *http.Reques
 
 	userID := db.GetUsertIDFromContext(req, ref.log)
 	if userID < 0 {
-		ref.log.Error("No userID found in context")
+		ref.log.Info("No userID found in context")
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
