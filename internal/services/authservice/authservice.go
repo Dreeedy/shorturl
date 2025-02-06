@@ -31,6 +31,10 @@ type Claims struct {
 	UserID int
 }
 
+const (
+	buildJWTStringText = "BuildJWTString"
+)
+
 func NewAuthService(newConfig config.Config, newLogger *zap.Logger, newUsertService *db.UsertService) AuthService {
 	var newAuthService = &AuthServiceImpl{
 		cfg:          newConfig,
@@ -81,8 +85,8 @@ func (ref *AuthServiceImpl) BuildJWTString(useDefaultUser bool) (string, error) 
 	}
 
 	ref.log.Info("useDefaultUser", zap.String("useDefaultUser", strconv.FormatBool(useDefaultUser)))
-	ref.log.Info("BuildJWTString", zap.String("new expiresAt", expiresAt.Format(time.RFC3339)))
-	ref.log.Info("BuildJWTString", zap.String("new userID", strconv.Itoa(userID)))
+	ref.log.Info(buildJWTStringText, zap.String("new expiresAt", expiresAt.Format(time.RFC3339)))
+	ref.log.Info(buildJWTStringText, zap.String("new userID", strconv.Itoa(userID)))
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{

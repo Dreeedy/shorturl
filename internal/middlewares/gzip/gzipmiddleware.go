@@ -1,7 +1,6 @@
 package gzip
 
 import (
-	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -113,17 +112,11 @@ func (c *compressReader) Close() error {
 
 func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("run CompressionHandler")
-
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			log.Printf("Error reading request body: %v", err)
-			http.Error(w, "Unable to read request body", http.StatusBadRequest)
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		if !strings.Contains(acceptEncoding, "gzip") {
+			next.ServeHTTP(w, r)
 			return
 		}
-		defer r.Body.Close()
-
-		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		contentEncoding := r.Header.Get("Content-Encoding")
 		if strings.Contains(contentEncoding, "gzip") {
@@ -134,17 +127,13 @@ func (ref *gzipMiddleware) CompressionHandler(next http.Handler) http.Handler {
 				return
 			}
 			defer cr.Close()
-
-			decompressedBody, err := io.ReadAll(cr)
-			if err != nil {
-				log.Printf("Error decompressing request body: %v", err)
-				http.Error(w, "Unable to decompress request body", http.StatusInternalServerError)
-				return
-			}
-
-			r.Body = io.NopCloser(bytes.NewBuffer(decompressedBody))
+			r.Body = cr
 		}
 
-		next.ServeHTTP(w, r)
+		cw := newCompressWriter(w)
+		defer cw.Close()
+
+		w.Header().Set("Content-Encoding", "gzip")
+		next.ServeHTTP(cw, r)
 	})
 }
