@@ -97,7 +97,6 @@ func (ref *AuthServiceImpl) BuildJWTString(useDefaultUser bool) (string, error) 
 
 	tokenString, err := token.SignedString([]byte(cfg.TokenSecretKey))
 	if err != nil {
-		ref.log.Error("failed to get SignedString", zap.Error(err))
 		return "", fmt.Errorf("failed to get SignedString: %w", err)
 	}
 

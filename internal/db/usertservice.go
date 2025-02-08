@@ -41,7 +41,6 @@ func (ref *UsertService) CreateUsert(tokenExpirationDate time.Time) (int, error)
     `
 	err := ref.db.GetConnPool().QueryRow(query, tokenExpirationDate).Scan(&id)
 	if err != nil {
-		ref.log.Error("failed to scan row", zap.Error(err))
 		return 0, fmt.Errorf("failed to scan row: %w", err)
 	}
 	return id, nil
@@ -51,7 +50,6 @@ func (ref *UsertService) CreateUsert(tokenExpirationDate time.Time) (int, error)
 func (ref *UsertService) UpdateUsert(id int, name, email string) error {
 	_, err := ref.db.GetConnPool().Exec("UPDATE usert SET name=$1, email=$2 WHERE id=$3", name, email, id)
 	if err != nil {
-		ref.log.Error("failed to update usert table", zap.Error(err))
 		return fmt.Errorf("failed to update usert table: %w", err)
 	}
 	return nil

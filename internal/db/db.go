@@ -29,7 +29,6 @@ func NewDB(newConfig config.Config, newLogger *zap.Logger) (DB, error) {
 	newLogger.Info("DBConnectionAdress", zap.String("DBConnectionAdress", DBConnectionAdress))
 	newConnConfig, err := pgx.ParseConnectionString(DBConnectionAdress)
 	if err != nil {
-		newLogger.Error("Failed to parse connection string", zap.Error(err))
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
@@ -41,7 +40,6 @@ func NewDB(newConfig config.Config, newLogger *zap.Logger) (DB, error) {
 	// Create a connection pool
 	newConnPool, err := pgx.NewConnPool(poolConfig)
 	if err != nil {
-		newLogger.Error("Failed to create connection pool", zap.Error(err))
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
@@ -79,18 +77,15 @@ func (ref *DBImpl) InitDB() error {
     );`
 	_, err := ref.pool.Exec(createUsertTableQuery)
 	if err != nil {
-		ref.log.Error("Failed to create usert table", zap.Error(err))
 		return fmt.Errorf("failed to create user table: %w", err)
 	}
 	// Создание таблицы "url_mapping"
 	_, err = ref.pool.Exec(createURLMappingTableQuery)
 	if err != nil {
-		ref.log.Error("Failed to create url_mapping table", zap.Error(err))
 		return fmt.Errorf("failed to create url_mapping table: %w", err)
 	}
 	_, err = ref.pool.Exec(insertDefaultUserQuery)
 	if err != nil {
-		ref.log.Error("Failed to insert default user", zap.Error(err))
 		return fmt.Errorf("failed to insert default user: %w", err)
 	}
 	return nil

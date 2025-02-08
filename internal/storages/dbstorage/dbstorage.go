@@ -49,7 +49,6 @@ func NewDBStorage(newConfig config.Config, newLogger *zap.Logger, newDB db.DB) *
 func (ref *DBStorageImpl) SetURL(data common.URLData) (common.URLData, error) {
 	tx, err := ref.db.GetConnPool().Begin()
 	if err != nil {
-		ref.log.Error("Failed to begin transaction", zap.Error(err))
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
@@ -96,7 +95,6 @@ func (ref *DBStorageImpl) SetURL(data common.URLData) (common.URLData, error) {
 
 	rows, errExec := tx.Query(query, args...)
 	if errExec != nil {
-		ref.log.Error("Failed to save URL", zap.Error(errExec))
 		return nil, fmt.Errorf("failed to save URL: %w", errExec)
 	}
 	defer rows.Close()
@@ -107,7 +105,6 @@ func (ref *DBStorageImpl) SetURL(data common.URLData) (common.URLData, error) {
 		var operationType string
 		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &operationType, &record.CorrelationID,
 			&record.ShortURL, &record.UsertID, &record.IsDeleted); err != nil {
-			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		record.OperationType = operationType
@@ -117,7 +114,6 @@ func (ref *DBStorageImpl) SetURL(data common.URLData) (common.URLData, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		ref.log.Error("Row iteration error", zap.Error(err))
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
@@ -155,14 +151,12 @@ func Ping(newConfig config.Config, newLogger *zap.Logger) error {
 	// Parse the connection string
 	connConfig, err := pgx.ParseConnectionString(newConfig.GetConfig().DBConnectionAdress)
 	if err != nil {
-		newLogger.Error("Failed to parse connection string", zap.Error(err))
 		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
 	// Establish the connection
 	conn, err := pgx.Connect(connConfig)
 	if err != nil {
-		newLogger.Error("Failed to connect to remote database", zap.Error(err))
 		return fmt.Errorf("failed to connect to remote database: %w", err)
 	}
 	defer func() {
@@ -177,7 +171,6 @@ func Ping(newConfig config.Config, newLogger *zap.Logger) error {
 
 	// Ping the database to ensure the connection is alive
 	if err := conn.Ping(context.Background()); err != nil {
-		newLogger.Error("Failed to ping the database", zap.Error(err))
 		return fmt.Errorf("failed to ping the database: %w", err)
 	}
 
@@ -193,7 +186,6 @@ func (ref *DBStorageImpl) GetURLsByUserID(userID int) (common.URLData, error) {
 	;`
 	rows, err := ref.db.GetConnPool().Query(query, userID)
 	if err != nil {
-		ref.log.Error("Failed to query URLs by user ID", zap.Error(err))
 		return nil, fmt.Errorf("failed to query URLs by user ID: %w", err)
 	}
 	defer rows.Close()
@@ -203,14 +195,12 @@ func (ref *DBStorageImpl) GetURLsByUserID(userID int) (common.URLData, error) {
 		var record common.URLItem
 		if err := rows.Scan(&record.UUID, &record.Hash, &record.OriginalURL, &record.OperationType, &record.CorrelationID,
 			&record.ShortURL, &record.UsertID); err != nil {
-			ref.log.Error("Failed to scan row", zap.Error(err))
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		results = append(results, record)
 	}
 
 	if err := rows.Err(); err != nil {
-		ref.log.Error("Row iteration error", zap.Error(err))
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
@@ -221,7 +211,6 @@ func (ref *DBStorageImpl) GetURLsByUserID(userID int) (common.URLData, error) {
 func (ref *DBStorageImpl) DeleteURLsByUser(hashes []string, userID int) error {
 	tx, err := ref.db.GetConnPool().Begin()
 	if err != nil {
-		ref.log.Error("Failed to begin transaction", zap.Error(err))
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
@@ -243,7 +232,6 @@ func (ref *DBStorageImpl) DeleteURLsByUser(hashes []string, userID int) error {
     WHERE hash = ANY($1) AND user_id = $2;`
 	_, err = tx.Exec(query, pq.Array(hashes), userID)
 	if err != nil {
-		ref.log.Error("Failed to delete URLs", zap.Error(err))
 		return fmt.Errorf("failed to delete URLs: %w", err)
 	}
 	return nil
