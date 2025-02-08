@@ -38,7 +38,9 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var tokenString string
 		cookies := r.Cookies()
+		hasCookies := false
 		if len(cookies) > 0 {
+			hasCookies = true
 			cookieMap := make(map[string]string)
 			for _, cookie := range cookies {
 				cookieMap[cookie.Name] = cookie.Value
@@ -54,7 +56,7 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 
 		userID := ref.ValidateToken(tokenString)
 
-		if userID == -1 {
+		if hasCookies && userID == -1 {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
