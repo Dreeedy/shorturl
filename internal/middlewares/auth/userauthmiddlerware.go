@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/db"
@@ -40,9 +39,6 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("run userauthmiddlerware")
 
-		// Логируем все заголовки запроса.
-		ref.log.Info("Request Headers", zap.Any("headers", r.Header))
-
 		var tokenString string
 		cookies := r.Cookies()
 		if len(cookies) > 0 {
@@ -55,11 +51,6 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			tokenString = cookie.Value
 		} else {
 			ref.log.Info("No cookies in request")
-		}
-
-		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" {
-			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 		}
 
 		// Валидируем токен.
