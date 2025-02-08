@@ -38,7 +38,6 @@ func NewAuthMiddleware(newConfig config.Config, newLogger *zap.Logger, newUsertS
 func (ref *Auth) Work(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Println("run userauthmiddlerware")
-
 		var tokenString string
 		cookies := r.Cookies()
 		if len(cookies) > 0 {
@@ -48,15 +47,20 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 			}
 			ref.log.Info("Request Cookies", zap.Any("cookies", cookieMap))
 			cookie, _ := r.Cookie("myJWTtoken")
-			tokenString = cookie.Value
+			if cookie != nil {
+				tokenString = cookie.Value
+			}
 		} else {
 			ref.log.Info("No cookies in request")
 		}
 
-		// Валидируем токен.
 		userID := ref.ValidateToken(tokenString)
-		ctx := context.WithValue(r.Context(), common.UserIDKey, userID)
+		if userID == -1 {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return
+		}
 
+		ctx := context.WithValue(r.Context(), common.UserIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -68,6 +72,7 @@ func (ref *Auth) ValidateToken(tokenString string) int {
 			return []byte(ref.cfg.GetConfig().TokenSecretKey), nil
 		})
 	if err != nil {
+		ref.log.Error("Failed to parse token", zap.Error(err))
 		return -1
 	}
 
