@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/Dreeedy/shorturl/internal/config"
@@ -37,7 +36,6 @@ func NewAuthMiddleware(newConfig config.Config, newLogger *zap.Logger, newUsertS
 
 func (ref *Auth) Work(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("run userauthmiddlerware")
 		var tokenString string
 		cookies := r.Cookies()
 		if len(cookies) > 0 {
@@ -55,9 +53,15 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 		}
 
 		userID := ref.ValidateToken(tokenString)
+
 		if userID == -1 {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
+		}
+
+		// Если токена нет вообще, используем анонимного пользователя (userID = 0).
+		if tokenString == "" {
+			userID = 0
 		}
 
 		ctx := context.WithValue(r.Context(), common.UserIDKey, userID)
@@ -66,21 +70,19 @@ func (ref *Auth) Work(next http.Handler) http.Handler {
 }
 
 func (ref *Auth) ValidateToken(tokenString string) int {
+	if tokenString == "" {
+		return -1
+	}
+
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims,
 		func(t *jwt.Token) (interface{}, error) {
 			return []byte(ref.cfg.GetConfig().TokenSecretKey), nil
 		})
-	if err != nil {
-		ref.log.Error("Failed to parse token", zap.Error(err))
+	if err != nil || !token.Valid || claims.UserID == 0 {
+		ref.log.Error("Token is not valid or UserID is missing")
 		return -1
 	}
-
-	if !token.Valid {
-		ref.log.Error("Token is not valid")
-		return -1
-	}
-
 	ref.log.Info("Token is valid")
 	return claims.UserID
 }
