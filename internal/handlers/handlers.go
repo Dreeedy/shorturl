@@ -13,6 +13,8 @@ import (
 
 	"github.com/Dreeedy/shorturl/internal/apperrors"
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/db"
+	"github.com/Dreeedy/shorturl/internal/services/authservice"
 	"github.com/Dreeedy/shorturl/internal/storages"
 	"github.com/Dreeedy/shorturl/internal/storages/common"
 	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
@@ -34,16 +36,24 @@ const (
 )
 
 type HandlerHTTP struct {
-	cfg config.Config
-	stg storages.Storage
-	log *zap.Logger
+	cfg       config.Config
+	stg       storages.Storage
+	log       *zap.Logger
+	db        db.DB
+	auth      authservice.AuthService
+	dBStorage dbstorage.DBStorage
 }
 
-func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage, newLogger *zap.Logger) *HandlerHTTP {
+func NewhandlerHTTP(newConfig config.Config, newStorage storages.Storage,
+	newLogger *zap.Logger, newDB db.DB, newAuth authservice.AuthService,
+	newDBStorage dbstorage.DBStorage) *HandlerHTTP {
 	return &HandlerHTTP{
-		cfg: newConfig,
-		stg: newStorage,
-		log: newLogger,
+		cfg:       newConfig,
+		stg:       newStorage,
+		log:       newLogger,
+		db:        newDB,
+		auth:      newAuth,
+		dBStorage: newDBStorage,
 	}
 }
 
@@ -75,6 +85,9 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	userID = ref.auth.Auth(w, userID)
+
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
@@ -94,17 +107,17 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Convert
+	// Convert.
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: originalURL},
 	}
-	setURLData := ref.generateShortenedURL(batchAPIRq)
+	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
 			w.Header().Set(contentType, contentTypeApplicationJSON)
@@ -115,7 +128,7 @@ func (ref *HandlerHTTP) ShortenedURL(w http.ResponseWriter, req *http.Request) {
 			}
 			return
 		} else {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			ref.log.Error(http.StatusText(http.StatusInternalServerError), zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -135,6 +148,9 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	userID = ref.auth.Auth(w, userID)
+
 	var shortenAPIRq ShortenAPIRq
 
 	if err := json.NewDecoder(req.Body).Decode(&shortenAPIRq); err != nil {
@@ -149,20 +165,20 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
-	// Convert
+	// Convert.
 	batchAPIRq := BatchAPIRq{
 		{OriginalURL: shortenAPIRq.URL},
 	}
-	setURLData := ref.generateShortenedURL(batchAPIRq)
+	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
-			// If there are existing records, return 409 Conflict and the existing short URLs
+			// If there are existing records, return 409 Conflict and the existing short URLs.
 			conflictResponse := ShortenAPIRs{
 				Result: existingRecords[0].ShortURL,
 			}
@@ -180,7 +196,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 			}
 			return
 		} else {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			ref.log.Error(http.StatusText(http.StatusInternalServerError), zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -205,7 +221,7 @@ func (ref *HandlerHTTP) Shorten(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.URLData {
+func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq, userID int) common.URLData {
 	var result common.URLData
 	cfg := ref.cfg.GetConfig()
 
@@ -220,6 +236,7 @@ func (ref *HandlerHTTP) generateShortenedURL(data BatchAPIRq) common.URLData {
 			OperationType: "INSERT",
 			CorrelationID: item.CorrelationID,
 			ShortURL:      shortenedURL,
+			UsertID:       userID,
 		}
 		result = append(result, resultItem)
 	}
@@ -245,10 +262,22 @@ func (ref *HandlerHTTP) OriginalURL(w http.ResponseWriter, req *http.Request) {
 
 	shortURL := chi.URLParam(req, "id")
 
-	originalURL, found := ref.stg.GetURL(shortURL)
+	var originalURL string
+	var found bool
+	var isDeleted bool
+	if storages.GetStorageType(ref.cfg, ref.log) != "db" {
+		originalURL, found = ref.stg.GetURL(shortURL)
+	} else {
+		originalURL, found, isDeleted = ref.dBStorage.GetURLWithDeletedFlag(shortURL)
+	}
 
 	if !found {
 		http.Error(w, "URL not found", http.StatusBadRequest)
+		return
+	}
+
+	if isDeleted {
+		w.WriteHeader(http.StatusGone)
 		return
 	}
 
@@ -261,6 +290,9 @@ func (ref *HandlerHTTP) Ping(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
+
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	ref.log.Info("Ping()", zap.String("Read userID", strconv.Itoa(userID)))
 
 	err := dbstorage.Ping(ref.cfg, ref.log)
 	if err != nil {
@@ -276,6 +308,9 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, invalidReqMethod, http.StatusBadRequest)
 		return
 	}
+
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	userID = ref.auth.Auth(w, userID)
 
 	var batchAPIRq BatchAPIRq
 
@@ -294,14 +329,13 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 	initialCapacity := len(batchAPIRq)
 	var batchAPIRs = make(BatchAPIRs, 0, initialCapacity)
 
-	// Convert
-	setURLData := ref.generateShortenedURL(batchAPIRq)
+	setURLData := ref.generateShortenedURL(batchAPIRq, userID)
 
 	existingRecords, errSetURL := ref.stg.SetURL(setURLData)
 	var errInsertConflict *apperrors.InsertConflictError
 	if errSetURL != nil {
 		if errors.As(errSetURL, &errInsertConflict) {
-			ref.log.Error("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
+			ref.log.Warn("Error errInsertConflict:", zap.String(errorKey, strconv.Itoa(errInsertConflict.Code)),
 				zap.String(errorKey, errInsertConflict.Message))
 
 			conflictResponses := make([]ShortURLItem, len(existingRecords))
@@ -325,7 +359,7 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 			}
 			return
 		} else {
-			ref.log.Error("Internal Server Error", zap.String(errorKey, errSetURL.Error()))
+			ref.log.Error(http.StatusText(http.StatusInternalServerError), zap.String(errorKey, errSetURL.Error()))
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
@@ -355,4 +389,90 @@ func (ref *HandlerHTTP) Batch(w http.ResponseWriter, req *http.Request) {
 		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
+}
+
+func (ref *HandlerHTTP) GetURLsByUser(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
+		return
+	}
+
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	if userID < 0 {
+		ref.log.Info("No userID found in context")
+	}
+	userID = ref.auth.Auth(w, userID)
+
+	urlData, err := ref.dBStorage.GetURLsByUserID(userID)
+	if err != nil {
+		ref.log.Error("Failed to get URLs by user ID", zap.Error(err))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	if len(urlData) == 0 {
+		w.Header().Set(contentType, contentTypeApplicationJSON)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Предварительно выделяем память для среза response.
+	response := make([]map[string]string, 0, len(urlData))
+
+	for _, urlItem := range urlData {
+		response = append(response, map[string]string{
+			"short_url":    urlItem.ShortURL,
+			"original_url": urlItem.OriginalURL,
+		})
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		ref.log.Error(unableToMarshalResp, zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set(contentType, contentTypeApplicationJSON)
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(resp); err != nil {
+		ref.log.Error(unableToWriteResp, zap.String(errorKey, err.Error()))
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (ref *HandlerHTTP) DeleteURLsByUser(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodDelete {
+		http.Error(w, invalidReqMethod, http.StatusBadRequest)
+		return
+	}
+
+	userID := db.GetUsertIDFromContext(req, ref.log)
+	if userID < 0 {
+		ref.log.Info("No userID found in context")
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	var hashes []string
+	if err := json.NewDecoder(req.Body).Decode(&hashes); err != nil {
+		ref.log.Error(unableToReadRqBody, zap.String(errorKey, err.Error()))
+		http.Error(w, unableToReadRqBody, http.StatusBadRequest)
+		return
+	}
+
+	defer func() {
+		if err := req.Body.Close(); err != nil {
+			ref.log.Error(unableToCloseRqBody, zap.String(errorKey, err.Error()))
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+	}()
+
+	go func() {
+		err := ref.dBStorage.DeleteURLsByUser(hashes, userID)
+		if err != nil {
+			ref.log.Error("Error marking URLs as deleted", zap.String(errorKey, err.Error()))
+		}
+	}()
+
+	w.WriteHeader(http.StatusAccepted)
 }

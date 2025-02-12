@@ -7,6 +7,10 @@ import (
 	"go.uber.org/zap"
 )
 
+type ZapLogger interface {
+	NewZapLogger(cfg config.Config) (*zap.Logger, error)
+}
+
 // NewZapLogger Initialize initializes the logger singleton with the required logging level.
 func NewZapLogger(cfg config.Config) (*zap.Logger, error) {
 	// convert the text logging level to zap.AtomicLevel.

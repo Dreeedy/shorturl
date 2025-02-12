@@ -21,10 +21,10 @@ type Storage interface {
 type StorageFactory struct {
 	cfg config.Config
 	log *zap.Logger
-	db  *db.DB
+	db  db.DB
 }
 
-func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger, newDB *db.DB) *StorageFactory {
+func NewStorageFactory(newConfig config.Config, newLogger *zap.Logger, newDB db.DB) *StorageFactory {
 	return &StorageFactory{
 		cfg: newConfig,
 		log: newLogger,

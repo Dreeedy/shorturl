@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/Dreeedy/shorturl/internal/config"
+	"github.com/Dreeedy/shorturl/internal/db"
+	"github.com/Dreeedy/shorturl/internal/services/authservice"
+	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/Dreeedy/shorturl/internal/storages/filestorage"
 	"github.com/go-chi/chi"
 	"github.com/golang/mock/gomock"
@@ -67,29 +70,27 @@ func TestShortenedURL(t *testing.T) {
 			},
 		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
-
-			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
+			mockDB := db.NewMockDB(ctrl)
+			mockAuthService := authservice.NewMockAuthService(ctrl)
+			mockDBStorage := dbstorage.NewMockDBStorage(ctrl)
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger, mockDB, mockAuthService, mockDBStorage)
 
 			mockStorage.EXPECT().SetURL(gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+			mockAuthService.EXPECT().Auth(gomock.Any(), gomock.Any()).Return(1).AnyTimes()
 
 			r := chi.NewRouter()
 			r.Post("/", handler.ShortenedURL)
-
 			request := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(test.body))
 			w := httptest.NewRecorder()
-
 			// Use the router to serve the request.
 			r.ServeHTTP(w, request)
-
 			res := w.Result()
 			defer func() {
 				if err := res.Body.Close(); err != nil {
@@ -98,9 +99,7 @@ func TestShortenedURL(t *testing.T) {
 			}()
 			resBody, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
-
 			t.Log("TestShortenedURL.resBody:", string(resBody))
-
 			assert.Equal(t, test.want.code, res.StatusCode)
 			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
 			if test.want.code == 201 {
@@ -170,8 +169,13 @@ func TestOriginalURL(t *testing.T) {
 
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
+			mockDB := db.NewMockDB(ctrl)
+			mockAuthService := authservice.NewMockAuthService(ctrl)
+			mockDBStorage := dbstorage.NewMockDBStorage(ctrl)
 
-			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger, mockDB, mockAuthService, mockDBStorage)
+
+			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{StorageType: "file"}).AnyTimes()
 
 			id := strings.TrimPrefix(test.path, "/")
 			if test.want.code == 307 {
@@ -179,6 +183,7 @@ func TestOriginalURL(t *testing.T) {
 			} else {
 				mockStorage.EXPECT().GetURL(id).Return("", false)
 			}
+			mockAuthService.EXPECT().Auth(gomock.Any(), gomock.Any()).Return(1).AnyTimes()
 
 			r := chi.NewRouter()
 			r.Get("/{id}", handler.OriginalURL)
@@ -262,11 +267,15 @@ func TestShorten(t *testing.T) {
 
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
+			mockDB := db.NewMockDB(ctrl)
+			mockAuthService := authservice.NewMockAuthService(ctrl)
+			mockDBStorage := dbstorage.NewMockDBStorage(ctrl)
 
-			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger, mockDB, mockAuthService, mockDBStorage)
 
 			mockStorage.EXPECT().SetURL(gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+			mockAuthService.EXPECT().Auth(gomock.Any(), gomock.Any()).Return(1).AnyTimes()
 
 			r := chi.NewRouter()
 			r.Post("/shorten", handler.Shorten)
@@ -348,11 +357,15 @@ func TestBatch(t *testing.T) {
 
 			mockConfig := config.NewMockConfig(ctrl)
 			mockStorage := filestorage.NewMockStorage(ctrl)
+			mockDB := db.NewMockDB(ctrl)
+			mockAuthService := authservice.NewMockAuthService(ctrl)
+			mockDBStorage := dbstorage.NewMockDBStorage(ctrl)
 
-			handler := NewhandlerHTTP(mockConfig, mockStorage, logger)
+			handler := NewhandlerHTTP(mockConfig, mockStorage, logger, mockDB, mockAuthService, mockDBStorage)
 
 			mockStorage.EXPECT().SetURL(gomock.Any()).AnyTimes()
 			mockConfig.EXPECT().GetConfig().Return(config.HTTPConfig{BaseURL: "http://localhost:8080"}).AnyTimes()
+			mockAuthService.EXPECT().Auth(gomock.Any(), gomock.Any()).Return(1).AnyTimes()
 
 			r := chi.NewRouter()
 			r.Post("/batch", handler.Batch)

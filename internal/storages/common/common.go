@@ -9,4 +9,10 @@ type URLItem struct {
 	OperationType string
 	CorrelationID string
 	ShortURL      string
+	UsertID       int
+	IsDeleted     bool
 }
+
+type ContextKey string
+
+const UserIDKey ContextKey = "userID"

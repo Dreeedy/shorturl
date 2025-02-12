@@ -30,7 +30,6 @@ func (ref *httpLogger) RqRsLogger(next http.Handler) http.Handler {
 		start := time.Now()
 
 		rec := responseRecorder{ResponseWriter: w, statusCode: http.StatusOK}
-
 		next.ServeHTTP(&rec, r)
 
 		duration := time.Since(start)

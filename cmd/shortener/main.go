@@ -7,10 +7,13 @@ import (
 	"github.com/Dreeedy/shorturl/internal/config"
 	"github.com/Dreeedy/shorturl/internal/db"
 	"github.com/Dreeedy/shorturl/internal/handlers"
+	"github.com/Dreeedy/shorturl/internal/middlewares/auth"
 	"github.com/Dreeedy/shorturl/internal/middlewares/gzip"
 	"github.com/Dreeedy/shorturl/internal/middlewares/httplogger"
+	"github.com/Dreeedy/shorturl/internal/services/authservice"
 	"github.com/Dreeedy/shorturl/internal/services/zaplogger"
 	"github.com/Dreeedy/shorturl/internal/storages"
+	"github.com/Dreeedy/shorturl/internal/storages/dbstorage"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"go.uber.org/zap"
@@ -25,7 +28,7 @@ func main() {
 		log.Fatal("zaplogger init failed:", zaploggerzErr)
 	}
 
-	var newDB *db.DB
+	var newDB db.DB
 	var errnewDB error
 	storageType := storages.GetStorageType(newConfig, newZapLogger)
 	if storageType == "db" {
@@ -48,22 +51,34 @@ func main() {
 		}
 	}
 
-	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger)
+	newUsertService := db.NewUsertService(newConfig, newZapLogger, newDB)
+	newAuthService := authservice.NewAuthService(newConfig, newZapLogger, newUsertService)
 
-	newHTTPLogger := httplogger.NewHTTPLogger(newConfig, newZapLogger)
+	newDBStorage := dbstorage.NewDBStorage(newConfig, newZapLogger, newDB)
+	newHandlerHTTP := handlers.NewhandlerHTTP(newConfig, newStorage, newZapLogger, newDB, newAuthService, newDBStorage)
 
+	newHTTPLoggerMiddleware := httplogger.NewHTTPLogger(newConfig, newZapLogger)
 	newGzipMiddleware := gzip.NewGzipMiddleware()
+	newAuthMiddleware := auth.NewAuthMiddleware(newConfig, newZapLogger, newUsertService)
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
 	router.Use(newGzipMiddleware.CompressionHandler)
-	router.Use(newHTTPLogger.RqRsLogger)
+	router.Use(newHTTPLoggerMiddleware.RqRsLogger)
+
+	if storageType == "db" {
+		router.Use(newAuthMiddleware.Work)
+	} else {
+		newZapLogger.Info("Skipping authMiddleware registration")
+	}
 
 	router.Post("/", newHandlerHTTP.ShortenedURL)
 	router.Get("/{id}", newHandlerHTTP.OriginalURL)
 	router.Post("/api/shorten", newHandlerHTTP.Shorten)
 	router.Post("/api/shorten/batch", newHandlerHTTP.Batch)
 	router.Get("/ping", newHandlerHTTP.Ping)
+	router.Get("/api/user/urls", newHandlerHTTP.GetURLsByUser)
+	router.Delete("/api/user/urls", newHandlerHTTP.DeleteURLsByUser)
 
 	newZapLogger.Info("Running server on %s\n", zap.String("RunAddr", httpConfig.RunAddr))
 	newZapLogger.Info("Base URL for shortened URLs: %s\n", zap.String("BaseURL", httpConfig.BaseURL))
